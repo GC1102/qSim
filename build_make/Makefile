@@ -20,17 +20,30 @@
 # Define the symbols we might want to change:
 CXX	 := /usr/bin/g++-7
 CXXFLAGS := -std=c++1z
-NVCC	 := nvcc
-NVCCFLAGS := 
-CUDA_ARCH := -gencode arch=compute_61,code=sm_61
+CXXFLAGS += -O2
 
-CUDA_INC :=/usr/local/cuda-9.2/include
-INCLUDES := -I$(CUDA_INC) -I../qSim_qcpu/src  -I../qSim_qbus/src  -I../qSim_qio/src -I../qSim/src
+###########################################
 
-LIBS := 
+# CUDA settings =>  to be customised as per available CUDA Toolkit & driver versions
+
+# include path and libraries
+CUDA_INC_PATH := /usr/local/cuda-9.2/include
 CUDA_LIB_PATH := /usr/local/cuda-9.2/lib64
 CUDA_LIBS := -L$(CUDA_LIB_PATH) -lcudart -lpthread
 
+CUDA_ARCH := -gencode arch=compute_61,code=sm_61
+
+# compile and link flags
+NVCC	 := nvcc
+NVCCFLAGS := 
+NVCCFLAGS += -Xptxas -O3
+
+NVCCFLAGS := $(NVCCFLAGS) $(CUDA_ARCH) 
+NVCCLNKFLAGS := $(CUDA_ARCH)  
+
+###########################################
+
+# Define target, objects and include & lib paths
 TARGET := qSim
 TARGET_GPU := $(TARGET)_gpu
 TARGET_CPU := $(TARGET)_cpu
@@ -43,16 +56,17 @@ OBJECTS	:= ./obj/qSim.o ./obj/qSim_main.o \
 OBJECTS_GPU := $(OBJECTS) ./obj/qSim_qcpu_device_GPU_CUDA.o
 OBJECTS_CPU := $(OBJECTS) ./obj/qSim_qcpu_device_CPU.o
 
-# SK case (default)
-NVCCFLAGS := $(NVCCFLAGS) $(CUDA_ARCH) 
-NVCCLNKFLAGS := $(CUDA_ARCH)  
+INCLUDES := -I../qSim_qcpu/src  -I../qSim_qbus/src  -I../qSim_qio/src -I../qSim/src
+LIBS := 
 
+###########################################
 
-$(info ************  building $(TARGET) ************)
-#all: $(TARGET_GPU) $(TARGET_CPU)
-all: $(TARGET_GPU) 
+$(info ************  building target ************)
+#all: 	$(TARGET_GPU) $(TARGET_CPU)
+all: 	gpu 
 
-gpu: $(TARGET_GPU)
+gpu: 	INCLUDES := $(INCLUDES) -I$(CUDA_INC_PATH)
+gpu: 	$(TARGET_GPU)
 
 cpu:	CXXFLAGS := $(CXXFLAGS) -D__QSIM_CPU__
 cpu:	$(TARGET_CPU)
