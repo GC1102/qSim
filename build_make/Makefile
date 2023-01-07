@@ -94,31 +94,6 @@ clean:
 ./obj/qSim_main.o: ../qSim/src/qSim_main.cpp
 	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim/src/qSim_main.cpp -o ./obj/qSim_main.o
 
-# -----------  qSim test  -----------------
-./obj/qSim_test.o: ../qSim_test/src/qSim_test.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test.cpp -o ./obj/qSim_test.o
-
-./obj/qSim_test_qio.o: ../qSim_test/src/qSim_test_qio.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qio.cpp -o ./obj/qSim_test_qio.o
-
-./obj/qSim_test_qbus.o: ../qSim_test/src/qSim_test_qbus.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qbus.cpp -o ./obj/qSim_test_qbus.o
-
-./obj/qSim_test_qcpu.o: ../qSim_test/src/qSim_test_qcpu.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qcpu.cpp -o ./obj/qSim_test_qcpu.o
-
-./obj/qSim_test_qsim.o: ../qSim_test/src/qSim_test_qsim.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qsim.cpp -o ./obj/qSim_test_qsim.o
-
-./obj/qSim_test_qcpu_bug_fixes.o: ../qSim_test/src/qSim_test_qcpu_bug_fixes.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qcpu_bug_fixes.cpp -o ./obj/qSim_test_qcpu_bug_fixes.o
-
-./obj/qSim_test_qcpu_perfo.o: ../qSim_test/src/qSim_test_qcpu_perfo.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qcpu_perfo.cpp -o ./obj/qSim_test_qcpu_perfo.o
-
-./obj/qSim_test_qcpu_ref_file_checks.o: ../qSim_test/src/qSim_test_qcpu_ref_file_checks.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qcpu_ref_file_checks.cpp -o ./obj/qSim_test_qcpu_ref_file_checks.o
-
 # -----------  qIo  -----------------
 ./obj/qSim_qio.o: ../qSim_qio/src/qSim_qio.cpp
 	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qio/src/qSim_qio.cpp -o ./obj/qSim_qio.o
