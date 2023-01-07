@@ -44,8 +44,10 @@
 
 #ifdef __QSIM_CPU__
 #include "qSim_qcpu_device_CPU.h"
+#ifdef __WIN32
 #define __device__ /* dummy */
-#define M_PI 2*acos(0.0) // !!!! not working directly from <cmat> !!!
+#define M_PI 2*acos(0.0) // !!!! not working directly from <cmat> in Windows!!!
+#endif
 #else
 #include "qSim_qcpu_device_GPU_CUDA.h"
 #endif

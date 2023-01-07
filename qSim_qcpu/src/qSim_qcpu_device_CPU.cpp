@@ -37,6 +37,8 @@
  */
 
 
+#include <cstring>
+
 #include <qSim_qcpu_device_CPU.h>
 #include <qSim_qcpu_device_function_exec.h>
 

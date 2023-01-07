@@ -27,34 +27,46 @@ CUDA_ARCH := -gencode arch=compute_61,code=sm_61
 CUDA_INC :=/usr/local/cuda-9.2/include
 INCLUDES := -I$(CUDA_INC) -I../qSim_qcpu/src  -I../qSim_qbus/src  -I../qSim_qio/src -I../qSim/src
 
-CUDA_LIB := /usr/local/cuda-9.2/lib64
-LIBS	 := -L$(CUDA_LIB) -lcudart -lpthread
+LIBS := 
+CUDA_LIB_PATH := /usr/local/cuda-9.2/lib64
+CUDA_LIBS := -L$(CUDA_LIB_PATH) -lcudart -lpthread
 
 TARGET := qSim
+TARGET_GPU := $(TARGET)_gpu
+TARGET_CPU := $(TARGET)_cpu
+
 OBJECTS	:= ./obj/qSim.o ./obj/qSim_main.o \
 	   ./obj/qSim_qio.o ./obj/qSim_qio_queue.o ./obj/qSim_qio_socket.o \
 	   ./obj/qSim_qasm.o ./obj/qSim_qsocket.o \
 	   ./obj/qSim_qcpu.o ./obj/qSim_qreg.o \
-	   ./obj/qSim_qinstruction_base.o ./obj/qSim_qinstruction_core.o ./obj/qSim_qinstruction_block.o \
-	   ./obj/qSim_qcpu_device_GPU_CUDA.o 
+	   ./obj/qSim_qinstruction_base.o ./obj/qSim_qinstruction_core.o ./obj/qSim_qinstruction_block.o
+OBJECTS_GPU := $(OBJECTS) ./obj/qSim_qcpu_device_GPU_CUDA.o
+OBJECTS_CPU := $(OBJECTS) ./obj/qSim_qcpu_device_CPU.o
 
 # SK case (default)
 NVCCFLAGS := $(NVCCFLAGS) $(CUDA_ARCH) 
 NVCCLNKFLAGS := $(CUDA_ARCH)  
-TARGET := $(TARGET)_sk
 
 
 $(info ************  building $(TARGET) ************)
-all: $(TARGET)
+#all: $(TARGET_GPU) $(TARGET_CPU)
+all: $(TARGET_GPU) 
 
+gpu: $(TARGET_GPU)
 
-qSim_sk: $(OBJECTS)
-	$(CXX) $(OBJECTS) -o $(TARGET) $(LIBS)
+cpu:	CXXFLAGS := $(CXXFLAGS) -D__QSIM_CPU__
+cpu:	$(TARGET_CPU)
+
+qSim_gpu: $(OBJECTS_GPU)
+	  $(CXX) $(OBJECTS_GPU) -o $(TARGET_GPU) $(LIBS) $(CUDA_LIBS)
+
+qSim_cpu: $(OBJECTS_CPU)
+	  $(CXX) $(OBJECTS_CPU) -o $(TARGET_CPU) $(LIBS)
 
 .PHONY: clean
 
 clean:
-	rm -f $(TARGET) $(OBJECTS)
+	rm -f $(TARGET_GPU) $(OBJECTS_GPU) $(TARGET_CPU) $(OBJECTS_CPU)
 
 
 ###########################################
@@ -67,6 +79,31 @@ clean:
 
 ./obj/qSim_main.o: ../qSim/src/qSim_main.cpp
 	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim/src/qSim_main.cpp -o ./obj/qSim_main.o
+
+# -----------  qSim test  -----------------
+./obj/qSim_test.o: ../qSim_test/src/qSim_test.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test.cpp -o ./obj/qSim_test.o
+
+./obj/qSim_test_qio.o: ../qSim_test/src/qSim_test_qio.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qio.cpp -o ./obj/qSim_test_qio.o
+
+./obj/qSim_test_qbus.o: ../qSim_test/src/qSim_test_qbus.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qbus.cpp -o ./obj/qSim_test_qbus.o
+
+./obj/qSim_test_qcpu.o: ../qSim_test/src/qSim_test_qcpu.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qcpu.cpp -o ./obj/qSim_test_qcpu.o
+
+./obj/qSim_test_qsim.o: ../qSim_test/src/qSim_test_qsim.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qsim.cpp -o ./obj/qSim_test_qsim.o
+
+./obj/qSim_test_qcpu_bug_fixes.o: ../qSim_test/src/qSim_test_qcpu_bug_fixes.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qcpu_bug_fixes.cpp -o ./obj/qSim_test_qcpu_bug_fixes.o
+
+./obj/qSim_test_qcpu_perfo.o: ../qSim_test/src/qSim_test_qcpu_perfo.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qcpu_perfo.cpp -o ./obj/qSim_test_qcpu_perfo.o
+
+./obj/qSim_test_qcpu_ref_file_checks.o: ../qSim_test/src/qSim_test_qcpu_ref_file_checks.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_test/src/qSim_test_qcpu_ref_file_checks.cpp -o ./obj/qSim_test_qcpu_ref_file_checks.o
 
 # -----------  qIo  -----------------
 ./obj/qSim_qio.o: ../qSim_qio/src/qSim_qio.cpp
@@ -103,6 +140,9 @@ clean:
 
 ./obj/qSim_qcpu_device_GPU_CUDA.o: ../qSim_qcpu/src/qSim_qcpu_device_GPU_CUDA.cu
 	$(NVCC) $(INCLUDES) $(NVCCFLAGS) -c ../qSim_qcpu/src/qSim_qcpu_device_GPU_CUDA.cu -o ./obj/qSim_qcpu_device_GPU_CUDA.o
+	
+./obj/qSim_qcpu_device_CPU.o: ../qSim_qcpu/src/qSim_qcpu_device_CPU.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qcpu_device_CPU.cpp -o ./obj/qSim_qcpu_device_CPU.o
 
 
 
