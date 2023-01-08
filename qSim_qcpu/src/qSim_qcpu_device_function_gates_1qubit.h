@@ -152,10 +152,7 @@ public:
 		else
 			f_val = QDEV_ST_MAKE_VAL(1.0, -1.0);
 #ifdef __QSIM_CPU__
-//		printf("f_val before: %g  %g\n", f_val.real(), f_val.imag());
 		f_val /= QDEV_ST_MAKE_VAL(2.0, 0.0);
-//		printf("f_val after: %g  %g\n", f_val.real(), f_val.imag());
-//		printf("f_val: %g  %g    sqrt(2): %g   %g %g \n", f_val.real(), f_val.imag(), sqrtf(2.0), sqrt2.real(), sqrt2.imag());
 #else
 		f_val = cuCdiv(f_val, QDEV_ST_MAKE_VAL(2.0, 0.0));
 		//	printf("f_dev_q1_sx...%d %d  -> %f %f\n", i, j, f_val.x, f_val.y);

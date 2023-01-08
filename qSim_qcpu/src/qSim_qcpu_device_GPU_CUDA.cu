@@ -179,7 +179,6 @@ void kernel_prod_fxi_sk(QDEV_ST_VAL_TYPE *x, QDEV_ST_VAL_TYPE *y, int N,
 		int k_stop = min(N-1, k_start+max_block_size-1);
 //		printf("fxi_sk...idx: %d  N: %d  k_step: %d  k_start: %d  k_stop: %d\n", idx, N, k_step, k_start, k_stop);
 		
-//		for (int k=0; k<N; k++) {
 		for (int k=k_start; k<k_stop+1; k++) {
 			// check for calculation limits considering LSQ gap fillers generated zeroes
 			if (k % k_step == idx % k_step) {

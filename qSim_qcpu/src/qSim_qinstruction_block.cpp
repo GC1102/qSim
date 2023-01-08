@@ -92,10 +92,6 @@ qSim_qinstruction_block::qSim_qinstruction_block(qSim_qasm_message* msg) :
 			SAFE_MSG_GET_PARAM_AS_INT(QASM_MSG_PARAM_TAG_F_REP, m_frep)
 			SAFE_MSG_GET_PARAM_AS_INT(QASM_MSG_PARAM_TAG_F_LSQ, m_flsq)
 
-//			if (msg->check_param_valueByTag(QASM_MSG_PARAM_TAG_F_FORM)) {
-//				// function form passed as argument (optional)
-//				SAFE_MSG_GET_PARAM_AS_INT(QASM_MSG_PARAM_TAG_F_FORM, m_fform)
-//			}
 			if (msg->check_param_valueByTag(QASM_MSG_PARAM_TAG_F_CRANGE)) {
 				// function control index range passed as argument (optional)
 				SAFE_MSG_GET_PARAM_AS_INDEX_RANGE(QASM_MSG_PARAM_TAG_F_CRANGE, m_fcrng)

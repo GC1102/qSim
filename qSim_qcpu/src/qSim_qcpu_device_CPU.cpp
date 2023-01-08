@@ -36,7 +36,6 @@
  *  --------------------------------------------------------------------------
  */
 
-
 #include <cstring>
 
 #include <qSim_qcpu_device_CPU.h>
@@ -55,7 +54,6 @@ void sequential_prod_fxi(QDEV_ST_VAL_TYPE *x, QDEV_ST_VAL_TYPE *y, int idx, int 
 						QDEV_F_ARGS_TYPE* d_fargs_cuda_vec, int tot_f, int max_block_size, int block_inner_gap_size,
 						int /*ftype*/, int fn, int fform, int gapn, int futype, int fun, int fuform) {
 	// single kernel case
-//	printf("sequential_prod_fxi...idx: %d\n", idx);
 
 	// combine all i-th row with x elements for y i-th result
 	if (idx < N) {
@@ -65,19 +63,14 @@ void sequential_prod_fxi(QDEV_ST_VAL_TYPE *x, QDEV_ST_VAL_TYPE *y, int idx, int 
 	    int k_step = block_inner_gap_size;
 		int k_start = max(0, (idx/max_block_size)*max_block_size);
 		int k_stop = min(N-1, k_start+max_block_size-1);
-//		printf("fxi_sk...idx: %d  N: %d  k_step: %d  k_start: %d  k_stop: %d\n", idx, N, k_step, k_start, k_stop);
 
-//		for (int k=0; k<N; k++) {
 		for (int k=k_start; k<k_stop+1; k++) {
 			// check for calculation limits considering LSQ gap fillers generated zeroes
 			if (k % k_step == idx % k_step) {
-//				printf("...found idx: %d  k: %d", idx, k);
 				y[idx] += x[k] * f_dev_qn_exec(idx, k, d_ftype_cuda_vec, d_fn_cuda_vec,
 										   	   fn, fform, gapn, futype, fun, fuform, d_fargs_cuda_vec, tot_f);
 			}
-//			printf("\n");
 		}
-//		printf("fxi_sk...%d -> %f %f\n", idx, y[idx].x, y[idx].y);
 	}
 }
 
@@ -309,22 +302,6 @@ void qSim_qcpu_device::dev_qreg_host2device_align(QDEV_ST_VAL_TYPE* d_x, QDEV_ST
 	// device memory alignment with given host one - no allocation
 	memcpy(d_x, x, N*sizeof(QDEV_ST_VAL_TYPE));
 }
-
-//void qSim_qcpu_device::dev_vec_host2device(void** d_x, void* x, int n, int size) {
-//	// device memory alignment with given host one - no allocation - vector case
-//	memcpy(d_x, x, n*size);
-////	cudaMemcpy((*d_x), x, n*size, cudaMemcpyHostToDevice);
-////	checkCUDAError("cudaMemcpy");
-////	cudaDeviceSynchronize();	-> not needed after a cudaMemcpy (it is synchronous)
-//}
-//
-//void qSim_qcpu_device::dev_args_host2device(QDEV_F_ARGS_TYPE** d_fargs, QDEV_F_ARGS_TYPE* fargs, int tot_f) {
-//	// device memory alignment with given host one - no allocation - function arguments case
-//	memcpy(d_fargs, fargs, tot_f*sizeof(QDEV_F_ARGS_TYPE));
-////	cudaMemcpy((*d_fargs), fargs, tot_f*sizeof(QDEV_F_ARGS_TYPE), cudaMemcpyHostToDevice);
-////	checkCUDAError("cudaMemcpy");
-////	cudaDeviceSynchronize();	-> not needed after a cudaMemcpy (it is synchronous)
-//}
 
 // helper function for device memory release
 void qSim_qcpu_device::dev_qreg_device_release(QDEV_ST_VAL_TYPE* d_x) {

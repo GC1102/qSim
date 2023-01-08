@@ -113,18 +113,6 @@ public:
 		//    with replicas as per total U-blocks
 
         return ((fubi%fugbsize == fugbsize-1) && (fubj%fugbsize == fugbsize-1) && (fubi == fubj));
-
-//		if (gapn == 0) {
-//			// no gaps - last main diagonal block only
-//			return ((i%fbgsize == fbgsize-1) && (j%fbgsize == fbgsize-1) && (i%fbgsize == j%fbgsize));
-//		}
-//		else {
-//			// gaps - all main diagonal blocks with <ctrl+1> replicas each
-//			int fbcsize = powf(2, ctrln);
-//			int fcbi = fqbi % fbcsize;
-//			int fcbj = fqbj % fbcsize;
-//			return ((fqbi == fqbj) && (fcbi == fbcsize-1) && (fcbj == fbcsize-1));
-//		}
 	}
 
 	__device__
@@ -136,9 +124,6 @@ public:
 		//    or on odd positions in first 2^gap blocks for gates > 1-qubit
 
         return ((i%f1bsize < f1bsize-1) && (j%f1bsize < f1bsize-1) && (i == j));
-
-//		return (((i%2 == 0) && (j%2 == 0) && (i == j)) ||
-//				((i%fbgsize < fbgsize-1) && (j%fbgsize < fbgsize-1) && (i == j)));
 	}
 
 	// ----------------------------------------------
@@ -166,7 +151,6 @@ public:
 //				i, j, fn, fsize, fbsize, gapn);
 
 		int fdbsize = fusize; // diagonal block size
-//		int fqbsize = fsize / 2; // quadrant block size
 
 		// calculate value based on given i,j indeces
 		QDEV_ST_VAL_TYPE f_val;

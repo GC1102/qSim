@@ -61,10 +61,10 @@ using namespace std;
 #include "qSim_qasm.h"
 #include "qSim_qreg.h"
 
-#ifndef __QSIM_CPU__
-#include "qSim_qcpu_device_GPU_CUDA.h"
-#else
+#ifdef __QSIM_CPU__
 #include "qSim_qcpu_device_CPU.h"
+#else
+#include "qSim_qcpu_device_GPU_CUDA.h"
 #endif
 
 #define QREG_ST_MAKE_VAL QDEV_ST_MAKE_VAL
@@ -145,12 +145,10 @@ bool qSim_qreg::applyCoreInstruction(qSim_qinstruction_core* qr_instr, std::stri
 			int fsize = qr_instr->m_fsize;
 			int frep = qr_instr->m_frep;
 			int flsq = qr_instr->m_flsq;
-//			int fform = qr_instr->m_fform;
 			QREG_F_INDEX_RANGE_TYPE fcrng = qr_instr->m_fcrng;
 			QREG_F_INDEX_RANGE_TYPE ftrng = qr_instr->m_ftrng;
 			QREG_F_ARGS_TYPE fargs = qr_instr->m_fargs;
 			int futype = qr_instr->m_futype;
-//			int fuform = qr_instr->m_fuform;
 			QREG_F_INDEX_RANGE_TYPE fucrng = qr_instr->m_fucrng;
 			QREG_F_INDEX_RANGE_TYPE futrng = qr_instr->m_futrng;
 			QREG_F_ARGS_TYPE fuargs = qr_instr->m_fuargs;
@@ -383,6 +381,16 @@ bool qSim_qreg::transform(QASM_F_TYPE ftype, int fsize, int frep, int flsq,
 
 	int ret = QDEV_RES_OK;
 
+	// final check before execution: LSQ and repetitions consistent with function and qureg size
+	if (powf(fsize, frep) > m_totStates) {
+		cout << "!!!ERROR - function repetitions exceeds qureg size!!" << endl;
+		return false;
+	}
+	else if (powf(fsize, frep+flsq) > m_totStates) {
+		cout << "!!!ERROR - inconsistent LSQ value found" << endl;
+		return false;
+	}
+
 	// call CUDA function - based on function type class
 	if (QASM_F_TYPE_IS_GATE_1QUBIT(ftype)) {
 		// 1-qubit gate case found
@@ -465,7 +473,6 @@ bool qSim_qreg::getStates(QREG_ST_VAL_ARRAY_TYPE* stArray) {
 		double st_r = m_states_x[i].real();
 		double st_i = m_states_x[i].imag();
 #endif
-//		(*stArray)[i] = QREG_ST_VAL_TYPE(st_r, st_i);
 		stArray->push_back(QREG_ST_VAL_TYPE(st_r, st_i));
 	}
 	return true;

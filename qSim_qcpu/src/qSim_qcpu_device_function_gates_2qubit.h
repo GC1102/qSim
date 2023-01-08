@@ -82,7 +82,6 @@ public:
 			// direct form
 			if ((i > 1) && (j > 1)) {
 				// apply gate
-				// printf("f_dev_q2_cu...direct...1q-gate...i: %d  j:%d  fi: %d  fj:%d \n", i, j, fi, fj);
 				FunctionCallback fu_dev_k = QDEV_F_GATE_1Q_SELECTOR((QASM_F_TYPE)fu_type);
 				f_val = fu_dev_k(i%2, j%2, fu_args);
 			}
@@ -99,8 +98,6 @@ public:
 			// inverse form
 			if ((i%2 == 1) && (j%2 == 1) && ((i == j) || (i == j+2) || (j == i+2))) {
 				// apply gate
-//				printf("...applying 1Q gate i: %d  j: %d fui: %d  fuj: %d\n",
-//						i, j, (i/2), (i/2));
 				FunctionCallback fu_dev_k = QDEV_F_GATE_1Q_SELECTOR((QASM_F_TYPE)fu_type);
 				f_val = fu_dev_k(i/2, j/2, fu_args);
 			}

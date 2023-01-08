@@ -379,50 +379,6 @@ bool qSim_qinstruction_base::state_string_to_value(std::string qr_st_str, QREG_S
 
 // ---------------------------------
 
-//// string <-> complex array back & forth conversions
-//// => state array string format: (r1, i1), (r2, i2), ..., (rn, in)
-////
-//// Note: no outer parenthesis!!
-//
-//std::string qSim_qinstruction_base::index_range_value_to_string(QREG_F_INDEX_RANGE_TYPE idx_rng) {
-//	std::string idx_rng_str = "(";
-//	if (!idx_rng.is_empty())
-//		idx_rng_str += to_string(idx_rng.m_start) + ", " + to_string(idx_rng.m_stop);
-//	idx_rng_str += ")";
-//	return idx_rng_str;
-//}
-//
-//bool qSim_qinstruction_base::index_range_string_to_value(std::string idx_rng_str, QREG_F_INDEX_RANGE_TYPE* idx_rng) {
-//	std::string strBuf = idx_rng_str;
-//	if (strBuf.size() > 0) {
-//		int idx0 = strBuf.find("(");
-//		int idx1 = strBuf.find(",");
-//		int idx2 = strBuf.find(")");
-//		if ((strBuf.size() < 2) || ((idx0 < 0) || (idx2 < 0))) {
-//			// wrong range string
-//			cerr << "index_range_string_to_value error - wrong string format in [" << idx_rng_str << "]!!" << endl;
-//			return false;
-//		}
-//		if (strBuf.size() == 2) {
-//			// empty range
-//			idx_rng->m_start = QREG_F_INDEX_RANGE_TYPE_NULL;
-//			idx_rng->m_stop = QREG_F_INDEX_RANGE_TYPE_NULL;
-//		}
-//		else {
-//			// defined range
-//			idx_rng->m_start = stoi(strBuf.substr(idx0+1, idx1-idx0-1));
-//			idx_rng->m_stop = stoi(strBuf.substr(idx1+2, idx2-idx1));
-//		}
-//	}
-//	else {
-//		cerr << "index_range_string_to_value error - empty string!!" << endl;
-//		return false;
-//	}
-//	return true;
-//}
-
-// ---------------------------------
-
 // measure index value::string conversion helpers
 // => index array string format: [idx1, ... idxn]
 //

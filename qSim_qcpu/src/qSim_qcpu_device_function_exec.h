@@ -188,10 +188,6 @@ QDEV_ST_VAL_TYPE f_dev_qn_exec(int i, int j, QASM_F_TYPE* ftype_dev_vec, int* fs
 			f_dev_k = QDEV_F_GATE_1Q_SELECTOR((QASM_F_TYPE)ftype_dev_vec[f_idx]);
 #ifdef __QSIM_CPU__
 			f_val *= f_dev_k(ik%fN_k, jk%fN_k, &(fargs_dev_vec[f_idx]));
-//			QDEV_ST_VAL_TYPE f_val_k = f_dev_k(ik%fN_k, jk%fN_k, &(fargs_dev_vec[f_idx]));
-//			printf("f_val before 1q: %g  %g  f_val_k: %g  %g\n", f_val.real(), f_val.imag(), f_val_k.real(), f_val_k.imag());
-//			f_val *= f_val_k;
-//			printf("f_val after 1q: %g  %g\n", f_val.real(), f_val.imag());
 #else
 			f_val = cuCmul(f_val, f_dev_k(ik%fN_k, jk%fN_k, &(fargs_dev_vec[f_idx])));
 #endif

@@ -101,15 +101,8 @@ public:
 	static void dev_qreg_host2device_align(QDEV_ST_VAL_TYPE* d_x, QDEV_ST_VAL_TYPE* x, int d_N);
 	static void dev_qreg_device_release(QDEV_ST_VAL_TYPE* d_x);
 
-//	static void dev_vec_host2device(void** d_x, void* x, int n, int size);
-//	static void dev_args_host2device(QDEV_F_ARGS_TYPE** d_fargs, QDEV_F_ARGS_TYPE* fargs, int tot_f);
-
 	// function args to device pointer array conversions
 	static QDEV_F_ARGS_TYPE fargs_to_dev_ptr_array(QREG_F_ARGS_TYPE fargs);
-
-//	// device info diagnostics
-//	int cuda_get_device_count();
-//	void cuda_properties_dump();
 
 private:
 	// function type, size and arg host vectors
