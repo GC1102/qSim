@@ -28,7 +28,8 @@
  *  --------------------------------------------------------------------------
  *  1.0   May-2022   Module creation.
  *  1.1   Nov-2022   Updated release version.
- *                   Handled command line arguments for help and verbose flag.
+ *                   Handled command line arguments for help, verbose flag and
+ *                   TCP/IP port.
  *
  *  --------------------------------------------------------------------------
  */
@@ -52,6 +53,19 @@ using namespace std;
 #define QSIM_VERSION "v2.0"
 
 
+// print usage information
+void show_usage(std::string cmd) {
+	cout << "Usage: " << cmd << " [args...]" << endl;
+	cout << "where arguments include:" << endl;
+	cout << " -help, -h" << endl;
+	cout << "\t to display this help" << endl;
+	cout << " -verbose, -v" << endl;
+	cout << "\t to enable diagnostic messages" << endl;
+	cout << " -port=<number>, -p=<number>" << endl;
+	cout << "\t to set a specific TCP/IP port" << endl;
+	cout << endl;
+}
+
 // main function entry point
 int main(int argc, char *argv[]) {
 
@@ -62,21 +76,39 @@ int main(int argc, char *argv[]) {
 
 	// setup parameters from command line arguments - if any
 	bool verbose = false;
+	int port = QSIM_DEFAULT_PORT;
 	for (int i=1; i<argc; i++) {
 		std::string arg = std::string(argv[i]);
-		if (arg.compare("-verbose") == 0) {
+		if ((arg.compare("-v") == 0) || (arg.compare("-verbose") == 0)) {
 			// set verbose flag
 			verbose = true;
 		}
+		else if ((arg.find("-p=") != std::string::npos) || (arg.find("-port=") != std::string::npos)) {
+			// port tag found - check for correct syntax (-port=<value>) and read port value
+			int sep_index = arg.find("=");
+			std::string port_str = arg.substr(sep_index+1, arg.length()-sep_index-1);
+			if (port_str.length() > 0) {
+				port = std::stoi(port_str);
+			}
+			else {
+				// wrong syntax
+				cerr << "ERROR!! wrong port number syntax [" << arg << "]" << endl << endl;
+				show_usage(std::string(argv[0]));
+				return 0;
+			}
+		}
 		// other cases...
 
-		else if (arg.compare("-h") == 0) {
+		else if ((arg.compare("-help") == 0) || (arg.compare("-h") == 0)) {
 			// print usage and exit
-			cout << "Usage: " << argv[0] << " [args...]" << endl;
-			cout << "where arguments include:" << endl;
-			cout << " -h        to display this help" << endl;
-			cout << " -verbose  to enable diagnostic messages" << endl;
-			cout << endl;
+			show_usage(std::string(argv[0]));
+			return 0;
+		}
+
+		else {
+			// wrong argument passed
+			cerr << "ERROR!! wrong argument [" << arg << "] provided" << endl << endl;
+			show_usage(std::string(argv[0]));
 			return 0;
 		}
 	}
@@ -87,9 +119,9 @@ int main(int argc, char *argv[]) {
 
 	// initialise qsim component
 	qSim qsim(verbose);
-	int ret = qsim.init(QSIM_DEFAULT_IPADDR, QSIM_DEFAULT_PORT); // to take as input or from config file....
+	int ret = qsim.init(QSIM_DEFAULT_IPADDR, port);
 	if (ret == QSIM_ERROR) {
-		cerr << "ERROR - qsim initialisation failed!!" << endl;
+		cerr << "ERROR!! qsim initialisation failed" << endl;
 		return 0;
 	}
 
