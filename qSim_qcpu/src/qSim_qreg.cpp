@@ -386,7 +386,7 @@ bool qSim_qreg::transform(QASM_F_TYPE ftype, int fsize, int frep, int flsq,
 		cout << "!!!ERROR - function repetitions exceeds qureg size!!" << endl;
 		return false;
 	}
-	else if (powf(fsize, frep)+powf(2, flsq) > m_totStates) {
+	else if (powf(fsize, frep) + powf(2, flsq) - 1 > m_totStates) {
 		cout << "!!!ERROR - inconsistent LSQ value found [" << flsq << "]" << endl;
 		return false;
 	}
