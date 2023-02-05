@@ -36,8 +36,12 @@ The qSim requires CUDA libraries installed in the target platform in case of GPU
 
 Feel free to customise the related CUDA variables in Makefile setting up your own includes and library aths as well as the CUDA compute level supported by your hardware.
   
+## Client Access
+The access to qSim is TCP/IP socket based and then possible by any applicaion supporting it. As Python specifi chelper, a dedicated module client access module is also included in the repository (qSim_qcln), making the access from a Python script very straightforward. This module is also described in the "How-To" access guide.
+
 ## References
 Further details and a complete description of the access protocol are provided in the "qSim How-To User Guide" provided in the repository.
+For any questions or requests my contact is: giacas11@gmail.com
 
 
   
