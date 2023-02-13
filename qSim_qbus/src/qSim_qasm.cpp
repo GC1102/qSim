@@ -41,6 +41,8 @@
  *                   Renamed client id and token constants.
  *                   Supported function block - 1-qubit SWAP.
  *                   Code clean-up.
+ *  1.3   Feb-2023   Supported qureg state expectation calculation and fixed
+ *                   terminology for state probability measure.
  *
  *  --------------------------------------------------------------------------
  */
@@ -149,7 +151,7 @@ bool qSim_qasm_message::check_syntax() {
 		case QASM_MSG_ID_QREG_ST_SET: {
 			// params:
 			// (1) qr_h = <value>
-			// (2) qr_stVal = <value> (optional)
+			// (2) qr_stVal = <value> (optional - full qureg excited state used as default)
 			//
 			if (m_params.count(QASM_MSG_PARAM_TAG_QREG_H) == 0) {
 				log_missing_param_tag(QASM_MSG_PARAM_TAG_QREG_H);
@@ -163,8 +165,8 @@ bool qSim_qasm_message::check_syntax() {
 			// (1) qr_h = <value>
 			// (2) qr_mQidx = <value>
 			// (3) qr_mQlen = <value>
-			// (4) qr_mRand = <value> (optional)
-			// (5) qr_mStColl = <value> (optional)
+			// (4) qr_mRand = <value> (optional - random probability used as default)
+			// (5) qr_mStColl = <value> (optional - state collapse used as default)
 			//
 			if (m_params.count(QASM_MSG_PARAM_TAG_QREG_H) == 0) {
 				log_missing_param_tag(QASM_MSG_PARAM_TAG_QREG_H);
@@ -183,6 +185,23 @@ bool qSim_qasm_message::check_syntax() {
 
 		// --------------------
 
+		case QASM_MSG_ID_QREG_ST_EXPECT: {
+			// params:
+			// (1) qr_h = <value>
+			// (2) qr_stIdx = <value> (optional - all states used as default)
+			// (3) qr_exQidx = <value> (optional - start qubit used as default)
+			// (4) qr_exQlen = <value> (optional - qureg length used as default)
+			// (5) qr_exObsOp = <value> (optional - computational basis used as default)
+			//
+			if (m_params.count(QASM_MSG_PARAM_TAG_QREG_H) == 0) {
+				log_missing_param_tag(QASM_MSG_PARAM_TAG_QREG_H);
+				res = false;
+			}
+		}
+		break;
+
+		// --------------------
+
 		case QASM_MSG_ID_QREG_ST_TRANSFORM: {
 			// params:
 			// (1) qr_h = <value>
@@ -190,7 +209,7 @@ bool qSim_qasm_message::check_syntax() {
 			// (3) f_size = <value>
 			// (4) f_rep = <value>
 			// (5) f_lsq = <value>
-			// (6) f_args = <value> (optional)
+			// (6) f_args = <value> (optional - empty args used as default)
 			//
 			if (m_params.count(QASM_MSG_PARAM_TAG_QREG_H) == 0) {
 				log_missing_param_tag(QASM_MSG_PARAM_TAG_QREG_H);

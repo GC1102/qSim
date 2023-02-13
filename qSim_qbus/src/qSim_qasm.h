@@ -43,6 +43,8 @@
  *                   Updated message parameter tag labels.
  *                   Supported function block - 1-qubit SWAP.
  *                   Code clean-up.
+ *  1.3   Feb-2023   Supported qureg state expectation calculation and fixed
+ *                   terminology for state probability measure.
  *
  *  --------------------------------------------------------------------------
  */
@@ -71,6 +73,7 @@
 #define QASM_MSG_ID_QREG_ST_TRANSFORM 14
 #define QASM_MSG_ID_QREG_ST_PEEK      15
 #define QASM_MSG_ID_QREG_ST_MEASURE   16
+#define QASM_MSG_ID_QREG_ST_EXPECT    17
 
 // message responses
 #define QASM_MSG_ID_RESPONSE 20
@@ -84,23 +87,27 @@
 #define QASM_MSG_PARAM_TAG_CLIENT_ID    "id"		// client mnemonic identifier
 #define QASM_MSG_PARAM_TAG_CLIENT_TOKEN "token"		// client unique token
 
-#define QASM_MSG_PARAM_TAG_QREG_QN      "qr_n"      // qureg size in qubits
-#define QASM_MSG_PARAM_TAG_QREG_H       "qr_h" 		// qureg state handler
-#define QASM_MSG_PARAM_TAG_QREG_STIDX   "qr_stIdx" 	// qureg state index (pure state set)
-#define QASM_MSG_PARAM_TAG_QREG_STVALS  "qr_stVals" // qureg state values (arbitrary state set)
-#define QASM_MSG_PARAM_TAG_QREG_MQIDX   "qr_mQidx" 	// qureg measurement start qubit
-#define QASM_MSG_PARAM_TAG_QREG_MQLEN   "qr_mQlen" 	// qureg measurement length
-#define QASM_MSG_PARAM_TAG_QREG_MRAND   "qr_mRand" 	// qureg measurement random flag
+#define QASM_MSG_PARAM_TAG_QREG_QN      "qr_n"       // qureg size in qubits
+#define QASM_MSG_PARAM_TAG_QREG_H       "qr_h" 		 // qureg state handler
+#define QASM_MSG_PARAM_TAG_QREG_STIDX   "qr_stIdx" 	 // qureg state index (pure state set)
+#define QASM_MSG_PARAM_TAG_QREG_STVALS  "qr_stVals"  // qureg state values (arbitrary state set)
+#define QASM_MSG_PARAM_TAG_QREG_MQIDX   "qr_mQidx" 	 // qureg measurement start qubit
+#define QASM_MSG_PARAM_TAG_QREG_MQLEN   "qr_mQlen" 	 // qureg measurement length
+#define QASM_MSG_PARAM_TAG_QREG_MRAND   "qr_mRand" 	 // qureg measurement random flag
 #define QASM_MSG_PARAM_TAG_QREG_MCOLL   "qr_mStColl" // qureg measured state collapse flag
-#define QASM_MSG_PARAM_TAG_QREG_MSTIDX  "qr_mStIdx"	// qureg measurement state index
-#define QASM_MSG_PARAM_TAG_QREG_MEXP    "qr_mStExp"	// qureg measurement state expectation
-#define QASM_MSG_PARAM_TAG_QREG_MSTIDXS "qr_mStIdxs"// qureg measurement state index vector
+#define QASM_MSG_PARAM_TAG_QREG_MSTIDX  "qr_mStIdx"	 // qureg measurement state index
+#define QASM_MSG_PARAM_TAG_QREG_MSTPR   "qr_mStPr"	 // qureg measurement state probability
+#define QASM_MSG_PARAM_TAG_QREG_MSTIDXS "qr_mStIdxs" // qureg measurement state index vector
+#define QASM_MSG_PARAM_TAG_QREG_EXSTIDX "qr_exStIdx" // qureg measurement state index
+#define QASM_MSG_PARAM_TAG_QREG_EXQIDX  "qr_exQidx"  // qureg state expectation start qubit
+#define QASM_MSG_PARAM_TAG_QREG_EXQLEN  "qr_exQlen"  // qureg state expectation length
+#define QASM_MSG_PARAM_TAG_QREG_EXOBSOP "qr_exObsOp" // qureg state expectation observable operator
+#define QASM_MSG_PARAM_TAG_QREG_EXSTVAL "qr_exStVal" // qureg state expectation value
 
 #define QASM_MSG_PARAM_TAG_F_TYPE     "f_type"      // function type
 #define QASM_MSG_PARAM_TAG_F_SIZE     "f_size"		// # of function states
 #define QASM_MSG_PARAM_TAG_F_REP      "f_rep"		// # of function repetitions
 #define QASM_MSG_PARAM_TAG_F_LSQ      "f_lsq"		// function LSQ index
-//#define QASM_MSG_PARAM_TAG_F_FORM     "f_form"		// function form (direct/inverse) - REDUNDANT!
 #define QASM_MSG_PARAM_TAG_F_CRANGE   "f_cRange"	// function control qubit index range (controlled-U only)
 #define QASM_MSG_PARAM_TAG_F_TRANGE   "f_tRange"	// function target qubit index range (controlled-U only)
 #define QASM_MSG_PARAM_TAG_F_UTYPE    "f_uType"		// function-U type
@@ -112,6 +119,7 @@
 // parameter values
 #define QASM_MSG_PARAM_VAL_OK  "Ok"
 #define QASM_MSG_PARAM_VAL_NOK "Not-Ok"
+
 
 // -----------------------------------------------
 
@@ -140,7 +148,7 @@ public:
 	QASM_MSG_PARAMS_TYPE  get_params()	{ return m_params; }
 
 	bool is_control_message()     { return ((m_id==QASM_MSG_ID_REGISTER) || (m_id==QASM_MSG_ID_UNREGISTER)); }
-	bool is_instruction_message() { return ((m_id>=QASM_MSG_ID_QREG_ALLOCATE) && (m_id<=QASM_MSG_ID_QREG_ST_MEASURE)); }
+	bool is_instruction_message() { return ((m_id>=QASM_MSG_ID_QREG_ALLOCATE) && (m_id<=QASM_MSG_ID_QREG_ST_EXPECT)); }
 
 	// message parameters handling
 	bool check_param_valueByTag(std::string par_tag)      { return (m_params.count(par_tag) > 0); };
@@ -226,6 +234,25 @@ enum QASM_F_TYPE {
 #define QASM_F_FORM_NULL    -1
 #define QASM_F_FORM_DIRECT  0
 #define QASM_F_FORM_INVERSE 1
+
+// ----------------------------------
+
+///////////////////////////////////////////////////////////////////////////
+//  QASM qureg state expectation observable operators handling constants
+///////////////////////////////////////////////////////////////////////////
+
+// data type and supported observable operators
+
+enum QASM_EX_OBSOP_TYPE {
+	// null value
+	QASM_EX_OBSOP_TYPE_NULL = -1,
+
+	QASM_EX_OBSOP_TYPE_COMP = 0,
+	QASM_EX_OBSOP_TYPE_PAULIZ,
+	// add others here...
+	// ...
+
+};
 
 // ----------------------------------
 

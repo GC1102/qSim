@@ -39,13 +39,14 @@ Created on Sat May 28 17:46:04 2022
 *                 Update message tags and function definitions for aligning
 *                 to qSim v2.0 QASM.
 * 1.2   Feb-2023  Added macro to identify 1-qubit parametric q-functions.
+*                 Supported qureg state expectations calculation.
 * 
 * ------------------------------------------------------------------------
 *
 """
 
 # TODO 
-# - check_syntax (if needed)
+# - check_syntax (where needed)
 
 
 # --------------------------------------------------------
@@ -63,6 +64,7 @@ QASM_MSG_ID_QREG_ST_SET       = 13
 QASM_MSG_ID_QREG_ST_TRANSFORM = 14
 QASM_MSG_ID_QREG_ST_PEEK      = 15
 QASM_MSG_ID_QREG_MEASURE      = 16
+QASM_MSG_ID_QREG_EXPECT       = 17
 
 # responses
 QASM_MSG_ID_RESPONSE = 20
@@ -85,13 +87,17 @@ QASM_MSG_PARAM_TAG_QREG_MQLEN = "qr_mQlen"
 QASM_MSG_PARAM_TAG_QREG_MRAND = "qr_mRand"
 QASM_MSG_PARAM_TAG_QREG_MCOLL = "qr_mStColl"
 QASM_MSG_PARAM_TAG_QREG_MSTIDX = "qr_mStIdx"
-QASM_MSG_PARAM_TAG_QREG_MEXP  = "qr_mStExp"
+QASM_MSG_PARAM_TAG_QREG_MPR   = "qr_mStPr"
 QASM_MSG_PARAM_TAG_QREG_MSTIDXS = "qr_mStIdxs"
+QASM_MSG_PARAM_TAG_QREG_ESTIDX = "qr_exStIdx"
+QASM_MSG_PARAM_TAG_QREG_EQIDX = "qr_exQidx"
+QASM_MSG_PARAM_TAG_QREG_EQLEN = "qr_exQlen"
+QASM_MSG_PARAM_TAG_QREG_EOBSOP = "qr_exObsOp"
+QASM_MSG_PARAM_TAG_QREG_ESTVAL = "qr_exStVal"
 QASM_MSG_PARAM_TAG_F_TYPE     = "f_type"
 QASM_MSG_PARAM_TAG_F_SIZE     = "f_size"
 QASM_MSG_PARAM_TAG_F_REP      = "f_rep"
 QASM_MSG_PARAM_TAG_F_LSQ      = "f_lsq"
-# QASM_MSG_PARAM_TAG_F_FORM     = "f_form"
 QASM_MSG_PARAM_TAG_F_CRANGE   = "f_cRange"
 QASM_MSG_PARAM_TAG_F_TRANGE   = "f_tRange"
 QASM_MSG_PARAM_TAG_F_UTYPE    = "f_uType"
@@ -166,11 +172,11 @@ QASM_F_FORM_INVERSE = 1
 
 # --------------------
 
-# # function classes
-# QASM_F_CLASS_NULL = -1
+# exectation observable operator types
+QASM_EX_OBSOP_TYPE_NULL = -1
 
-# QASM_F_CLASS_GENERAL = 0
-# QASM_F_CLASS_CONTROLLED = 1
+QASM_EX_OBSOP_TYPE_COMP = 0 
+QASM_EX_OBSOP_TYPE_PAULIZ = 1
 
 # --------------------------------------------------------
 

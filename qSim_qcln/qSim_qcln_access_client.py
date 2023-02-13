@@ -38,6 +38,7 @@ Created on Sat May 28 21:58:57 2022
 * 1.0   May-2022  Module creation.
 * 1.1   Nov-2022  Moved to qSim v2 and renamed to qSim_qcln_access_client.
 * 1.2   Feb-2023  Fixed terminology for measure output (probability returned).
+*                 Supported qureg state expectations calculation.
 * 
 * ------------------------------------------------------------------------
 *
@@ -384,12 +385,12 @@ class qSim_qcln_access_client():
         if res:
             # request ok - get qreg measurement values
             
-            # measured stare index - convert to int
+            # measured state index - convert to int
             m_st_str = msg_res.get_param_valueByTag(qasm.QASM_MSG_PARAM_TAG_QREG_MSTIDX)
             m_st = int(m_st_str)
             
             # measurement state probability - convert to double array
-            m_pr_str = msg_res.get_param_valueByTag(qasm.QASM_MSG_PARAM_TAG_QREG_MEXP)
+            m_pr_str = msg_res.get_param_valueByTag(qasm.QASM_MSG_PARAM_TAG_QREG_MPR)
             # print('m_pr_str:', m_pr_str)
             if not m_pr_str is None:
                 m_pr = float(m_pr_str)
@@ -411,6 +412,45 @@ class qSim_qcln_access_client():
             m_pr = None
             m_vec = None
         return m_st, m_pr, m_vec
+            
+    # -------
+    
+    def qreg_expectation(self, qr_h, st_idx, q_idx, q_len, q_obs_op):
+        # state expectation for given qureg handler
+        
+        # send message
+        msg_reg = qasm.qSim_qcln_qasm()
+        msg_reg.m_counter = self.m_counter
+        msg_reg.m_id = qasm.QASM_MSG_ID_QREG_EXPECT
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_TOKEN, self.m_token)
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_QREG_H, str(qr_h))
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_QREG_ESTIDX, str(st_idx))
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_QREG_EQIDX, str(q_idx))
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_QREG_EQLEN, str(q_len))
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_QREG_EOBSOP, str(q_obs_op))
+        raw_msg = msg_reg.to_raw_message()
+        self.m_qsock.send_raw_message(raw_msg)
+        self.m_counter += 1
+        if self.m_verbose:
+            print('qSim-access - qureg state get values request sent - qr_h:', qr_h)
+        
+        # receive response
+        raw_msg = self.m_qsock.receive_raw_message()
+        msg_res = qasm.qSim_qcln_qasm()
+        msg_res.from_raw_message(raw_msg)
+        res = self.check_response_message(msg_res)
+        if res:
+            # request ok - get qreg expectation values
+            
+            # expectation value - convert to double
+            m_exp_str = msg_res.get_param_valueByTag(qasm.QASM_MSG_PARAM_TAG_QREG_ESTVAL)
+            m_exp = float(m_exp_str)
+            
+            if self.m_verbose:
+                print('qSim-access - qreg expectation OK - m_exp:', m_exp)
+        else:
+            m_exp = None
+        return m_exp
             
     # -------------------------
     # helper methods
