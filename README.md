@@ -9,7 +9,7 @@ The functionalities provided by qSim are:
   
   • universal 1-qubit and 2-qubits quantum gate set (e.g. Pauli, Hadamard, identity, phase shift, CX, CY, Cz, etc.)
   
-  • high level blocks for common n-qubits transformations (e.g. swap and controlled swap)
+  • high level blocks for common n-qubits transformations (e.g. swap and controlled swap) and extensions for QML QVC (feature maps and QVC networks)
   
   • quregs measurement
   
