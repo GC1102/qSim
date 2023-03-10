@@ -28,6 +28,8 @@
  *  Ver   Date       Change
  *  --------------------------------------------------------------------------
  *  1.0   Dec-2022   Module creation.
+ *  1.1   Feb-2023   Handled QML function blocks (feature map and q-net).
+ *                   Added double to string precise conversion helper method.
  *
  *  --------------------------------------------------------------------------
  */
@@ -86,8 +88,9 @@ std::string qSim_qreg_function_arg::to_string() {
 	std::string farg_str = "";
 	if (m_type == INT)
 		farg_str = std::to_string(m_i);
-	else if (m_type == DOUBLE)
-		farg_str = std::to_string(m_d);
+	else if (m_type == DOUBLE) {
+		farg_str = qSim_qinstruction_base::double_value_to_string(m_d);
+	}
 	else if (m_type == RANGE)
 		farg_str = m_rng.to_string();
 	farg_str += "|" + QREG_F_ARGS_VALTYPE_TYPE_LABELS[m_type];
@@ -244,6 +247,22 @@ bool qSim_qinstruction_base::is_block(qSim_qasm_message* msg) {
 		return false;
 }
 
+bool qSim_qinstruction_base::is_block_qml(qSim_qasm_message* msg) {
+	// QML block instruction message check
+	// -> it must be a block transformation of QML type
+	if (msg->is_instruction_message() && (msg->get_id() == QASM_MSG_ID_QREG_ST_TRANSFORM)) {
+		QASM_F_TYPE ftype;
+		if (!qSim_qinstruction_base::get_msg_param_value_as_ftype(msg, QASM_MSG_PARAM_TAG_F_TYPE, &ftype)) {
+			cerr << "qSim_qcpu::dispatch_message - no function type parameter in instruction message!!" << endl;
+			return false;
+		}
+		else
+			return (QASM_F_TYPE_IS_FUNC_BLOCK_QML(ftype));
+	}
+	else
+		return false;
+}
+
 /////////////////////////////////////////////////////////////////////////
 // qreg instruction base class helper methods
 
@@ -286,7 +305,7 @@ std::string qSim_qinstruction_base::fargs_to_string(QREG_F_ARGS_TYPE fargs) {
 	// convert given function args to string format
 	std::string fargs_str = QREG_TRASF_ARGS_TAG_FIRST;
 	for (unsigned int i=0; i<fargs.size(); i++) {
-		cout <<"..farg #" << i << " - type: " << fargs[i].m_type << " - str: " << fargs[i].to_string() << endl;
+//		cout <<"..farg #" << i << " - type: " << fargs[i].m_type << " - str: " << fargs[i].to_string() << endl;
 		fargs_str += fargs[i].to_string();
 		if (i < fargs.size()-1)
 			fargs_str += QREG_TRASF_ARGS_TAG_SEP; // add ending comma separator not for last one!
@@ -346,8 +365,8 @@ bool qSim_qinstruction_base::fargs_from_string(std::string fargs_str, QREG_F_ARG
 std::string qSim_qinstruction_base::state_value_to_string(QREG_ST_VAL_ARRAY_TYPE q_st) {
 	std::string qr_st_str = "";
 	for (unsigned int i=0; i<q_st.size(); i++) {
-		qr_st_str += "(" + to_string(q_st[i].real()) + ", "
-				+ to_string(q_st[i].imag()) + ")";
+		qr_st_str += "(" + double_value_to_string(q_st[i].real()) + ", "
+				+ double_value_to_string(q_st[i].imag()) + ")";
 		if (i < q_st.size()-1)
 			qr_st_str += ",";
 		qr_st_str += " ";
@@ -541,4 +560,10 @@ bool qSim_qinstruction_base::get_msg_param_value_as_fargs(qSim_qasm_message* msg
 	return res;
 }
 
+std::string qSim_qinstruction_base::double_value_to_string(double d_val) {
+	std::ostringstream out;
+	out.precision(18); // precision level here <---
+	out << std::fixed << d_val;
+	return out.str();
+}
 

@@ -49,7 +49,7 @@ using namespace std;
 
 
 // -------------------------------------------------
-// derived instruction core class
+// q-instruction block class
 // -------------------------------------------------
 
 class qSim_qinstruction_block : public qSim_qinstruction_base {
@@ -73,6 +73,7 @@ public:
 	QREG_F_ARGS_TYPE m_fargs;
 
 	// constructor and destructor
+	qSim_qinstruction_block();
 	qSim_qinstruction_block(qSim_qasm_message*);
 	virtual ~qSim_qinstruction_block();
 

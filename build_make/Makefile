@@ -52,7 +52,8 @@ OBJECTS	:= ./obj/qSim.o ./obj/qSim_main.o \
 	   ./obj/qSim_qio.o ./obj/qSim_qio_queue.o ./obj/qSim_qio_socket.o \
 	   ./obj/qSim_qasm.o ./obj/qSim_qsocket.o \
 	   ./obj/qSim_qcpu.o ./obj/qSim_qreg.o \
-	   ./obj/qSim_qinstruction_base.o ./obj/qSim_qinstruction_core.o ./obj/qSim_qinstruction_block.o
+	   ./obj/qSim_qinstruction_base.o ./obj/qSim_qinstruction_core.o \
+	   ./obj/qSim_qinstruction_block.o ./obj/qSim_qinstruction_block_qml.o
 OBJECTS_GPU := $(OBJECTS) ./obj/qSim_qcpu_device_GPU_CUDA.o
 OBJECTS_CPU := $(OBJECTS) ./obj/qSim_qcpu_device_CPU.o
 
@@ -71,10 +72,10 @@ gpu: 	$(TARGET_GPU)
 cpu:	CXXFLAGS := $(CXXFLAGS) -D__QSIM_CPU__
 cpu:	$(TARGET_CPU)
 
-qSim_gpu: $(OBJECTS_GPU)
+qSim_gpu: obj $(OBJECTS_GPU)
 	  $(CXX) $(OBJECTS_GPU) -o $(TARGET_GPU) $(LIBS) $(CUDA_LIBS)
 
-qSim_cpu: $(OBJECTS_CPU)
+qSim_cpu: obj $(OBJECTS_CPU)
 	  $(CXX) $(OBJECTS_CPU) -o $(TARGET_CPU) $(LIBS)
 
 .PHONY: clean
@@ -87,51 +88,58 @@ clean:
 # build rules
 ###########################################
 
+# -----------  obj directory  -----------------
+obj: 
+	mkdir -p $@
+	  
 # -----------  qSim  -----------------
 ./obj/qSim.o: ../qSim/src/qSim.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim/src/qSim.cpp -o ./obj/qSim.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim/src/qSim.cpp -o $@
 
 ./obj/qSim_main.o: ../qSim/src/qSim_main.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim/src/qSim_main.cpp -o ./obj/qSim_main.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim/src/qSim_main.cpp -o $@
 
 # -----------  qIo  -----------------
 ./obj/qSim_qio.o: ../qSim_qio/src/qSim_qio.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qio/src/qSim_qio.cpp -o ./obj/qSim_qio.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qio/src/qSim_qio.cpp -o $@
 
 ./obj/qSim_qio_queue.o: ../qSim_qio/src/qSim_qio_queue.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qio/src/qSim_qio_queue.cpp -o ./obj/qSim_qio_queue.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qio/src/qSim_qio_queue.cpp -o $@
 
 ./obj/qSim_qio_socket.o: ../qSim_qio/src/qSim_qio_socket.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qio/src/qSim_qio_socket.cpp -o ./obj/qSim_qio_socket.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qio/src/qSim_qio_socket.cpp -o $@
 
 # -----------  qBus  -----------------
 ./obj/qSim_qasm.o: ../qSim_qbus/src/qSim_qasm.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qbus/src/qSim_qasm.cpp -o ./obj/qSim_qasm.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qbus/src/qSim_qasm.cpp -o $@
 
 ./obj/qSim_qsocket.o: ../qSim_qbus/src/qSim_qsocket.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qbus/src/qSim_qsocket.cpp -o ./obj/qSim_qsocket.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qbus/src/qSim_qsocket.cpp -o $@
 
 # -----------  qCpu  -----------------
 ./obj/qSim_qcpu.o: ../qSim_qcpu/src/qSim_qcpu.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qcpu.cpp -o ./obj/qSim_qcpu.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qcpu.cpp -o $@
 
 ./obj/qSim_qreg.o: ../qSim_qcpu/src/qSim_qreg.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qreg.cpp -o ./obj/qSim_qreg.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qreg.cpp -o $@
 
 ./obj/qSim_qinstruction_base.o: ../qSim_qcpu/src/qSim_qinstruction_base.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qinstruction_base.cpp -o ./obj/qSim_qinstruction_base.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qinstruction_base.cpp -o $@
 
 ./obj/qSim_qinstruction_core.o: ../qSim_qcpu/src/qSim_qinstruction_core.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qinstruction_core.cpp -o ./obj/qSim_qinstruction_core.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qinstruction_core.cpp -o $@
 
 ./obj/qSim_qinstruction_block.o: ../qSim_qcpu/src/qSim_qinstruction_block.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qinstruction_block.cpp -o ./obj/qSim_qinstruction_block.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qinstruction_block.cpp -o $@
+
+./obj/qSim_qinstruction_block_qml.o: ../qSim_qcpu/src/qSim_qinstruction_block_qml.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qinstruction_block_qml.cpp -o $@
 
 ./obj/qSim_qcpu_device_GPU_CUDA.o: ../qSim_qcpu/src/qSim_qcpu_device_GPU_CUDA.cu
-	$(NVCC) $(INCLUDES) $(NVCCFLAGS) -c ../qSim_qcpu/src/qSim_qcpu_device_GPU_CUDA.cu -o ./obj/qSim_qcpu_device_GPU_CUDA.o
+	$(NVCC) $(INCLUDES) $(NVCCFLAGS) -c ../qSim_qcpu/src/qSim_qcpu_device_GPU_CUDA.cu -o $@
 	
 ./obj/qSim_qcpu_device_CPU.o: ../qSim_qcpu/src/qSim_qcpu_device_CPU.cpp
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qcpu_device_CPU.cpp -o ./obj/qSim_qcpu_device_CPU.o
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c ../qSim_qcpu/src/qSim_qcpu_device_CPU.cpp -o $@
 
 
 

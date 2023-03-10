@@ -29,6 +29,8 @@
  *  Ver   Date       Change
  *  --------------------------------------------------------------------------
  *  1.0   May-2022   Module creation cloning former qreg_qsocket class.
+ *  1.1   Feb-2023   Handled socket client polling timeout passage as init argument.
+ *                   Code clean-up.
  *
  *  --------------------------------------------------------------------------
  */
@@ -41,22 +43,20 @@
 
 #include "qSim_qsocket.h"
 
-//#define QIO_MSG_DATA_MAX_LEN 128
-
 // => variable length messages exchanged
 //    - message len first - 4 bytes fixed length
 //    - message content - <len> bytes
 
 #define QIO_MSG_LEN_SIZE 4 // same as sizeof(unsigned int)
-//#define QIO_MSG_DATA_MAX_LEN 128
 
 struct qio_raw_msg {
 	unsigned int  m_len;
-//	char 		  m_data[QIO_MSG_DATA_MAX_LEN];
-	char* 		  m_dataBuf; // dynamic allocation!!
+	char* 		  m_dataBuf; // dynamic allocation
 
 	~qio_raw_msg() {if (m_len > 0) delete(m_dataBuf); }
 };
+
+// ----------------
 
 class qSim_qio_socket_server_cb {
 public:
@@ -66,19 +66,21 @@ public:
 	virtual void out_message_cb(qio_raw_msg*) = 0;
 };
 
+#define QIO_SOCK_CLN_ACCEPT_LOOP_TIMEOUT_USEC 10000
+#define QIO_SOCK_CLN_MSG_LOOP_TIMEOUT_USEC 100
+
+
 class qSim_qio_socket_server : public qSim_qsocket_server {
 	public:
 		qSim_qio_socket_server(bool verbose=false);
 		virtual ~qSim_qio_socket_server();
 
-//		void set_dataIn_callback_function(std::function<void ()> fn);
-//		void set_dataOut_callback_function(std::function<void ()> fn);
 		void set_dataInOut_callback(qSim_qio_socket_server_cb* cb);
+		void set_clientPollingTimeout(int timeout);
 
 	private:
-//		std::function<void ()> m_dataIn_cbFunction;
-//		std::function<void ()> m_dataOut_cbFunction;
 		qSim_qio_socket_server_cb* m_dataInOut_cb;
+		int m_clnPollingTimeout;
 
 		std::thread m_clnThr_id;
 
@@ -89,21 +91,5 @@ class qSim_qio_socket_server : public qSim_qsocket_server {
 		bool send_data(struct qio_raw_msg* msg);
 
 };
-
-/////////////////////////////////////////////////////////////////////
-//
-//class qSim_qreg_qsocket_client : public qSim_qsocket_client {
-//public:
-//	qSim_qreg_qsocket_client(bool verbose=false);
-//	virtual ~qSim_qreg_qsocket_client();
-//
-//	int connect_server(const char* server_ipaddr, int server_port=QBUS_DEFAULT_PORT);
-//
-//	bool receive_data(qreg_msg* msg);
-//	bool send_data(qreg_msg* msg);
-//
-////private:
-////	...
-//};
 
 #endif /* QSIM_QIO_SOCKET_H_ */

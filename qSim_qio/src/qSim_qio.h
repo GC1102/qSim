@@ -30,6 +30,7 @@
  *  --------------------------------------------------------------------------
  *  1.0   May-2022   Module creation.
  *  1.1   Dec-2022   Modified pop method to return removed element reference.
+ *  1.2   Feb-2023   Handled socket polling timeout passage as init argument.
  *
  *  --------------------------------------------------------------------------
  */
@@ -50,8 +51,11 @@
 #define QIO_OK    QBUS_SOCK_OK
 #define QIO_ERROR QBUS_SOCK_ERROR
 
-// Client access credentials handling
+// client access credentials handling
 typedef std::map<QASM_MSG_ACCESS_TOKEN_TYPE, std::string> QIO_CLIENT_ACCESS_REGISTRY;
+
+// socket reading polling timeout - default
+#define QIO_SOCK_LOOP_TIMEOUT_USEC QIO_SOCK_CLN_MSG_LOOP_TIMEOUT_USEC
 
 class qSim_qio : public qSim_qio_socket_server_cb {
 
@@ -60,7 +64,7 @@ class qSim_qio : public qSim_qio_socket_server_cb {
 		qSim_qio(bool verbose=false);
 		virtual ~qSim_qio();
 
-		int init(std::string ipAddr, int port);
+		int init(std::string ipAddr, int port, int sock_timeout=QIO_SOCK_LOOP_TIMEOUT_USEC);
 
 		// queues access
 		int get_msgIn_queue_size()  { return m_msgIn_queue.size(); }

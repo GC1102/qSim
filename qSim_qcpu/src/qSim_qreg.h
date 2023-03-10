@@ -43,6 +43,9 @@
  *                   Handled CPU mode compiling and applied agnostic class renaming
  *                   to qSim_qcpu_device.
  *                   Code clean-up.
+ *  2.2   Feb-2023   Supported qureg state expectation calculation and fixed
+ *                   terminology for state probability measure.
+ *                   Handled QML function blocks (feature map and q-net).
  *
  *  --------------------------------------------------------------------------
  */
@@ -53,6 +56,7 @@
 
 #include <vector>
 #include <complex>
+#include <map>
 
 #ifndef __QSIM_CPU__
 #include "qSim_qcpu_device_GPU_CUDA.h"
@@ -62,6 +66,7 @@
 
 #include "qSim_qinstruction_core.h"
 #include "qSim_qinstruction_block.h"
+#include "qSim_qinstruction_block_qml.h"
 
 
 class qSim_qreg {
@@ -92,9 +97,12 @@ class qSim_qreg {
 		bool applyCoreInstruction(qSim_qinstruction_core* qr_instr, std::string* result,
 								  QREG_ST_VAL_ARRAY_TYPE* stArray);
 		bool applyCoreInstruction(qSim_qinstruction_core* qr_instr, std::string* result,
-				                  QREG_ST_INDEX_TYPE* m_st, double* m_exp, QREG_ST_INDEX_ARRAY_TYPE* m_vec);
+				                  QREG_ST_INDEX_TYPE* m_st, double* m_pr, QREG_ST_INDEX_ARRAY_TYPE* m_vec);
+		bool applyCoreInstruction(qSim_qinstruction_core* qr_instr, std::string* result,
+				                  double* m_exp);
 
 		bool applyBlockInstruction(qSim_qinstruction_block* qr_instr, std::string* result);
+		bool applyBlockInstructionQml(qSim_qinstruction_block_qml* qr_instr, std::string* result);
 
 		// accessors
 		unsigned int getTotStates();
@@ -114,8 +122,9 @@ class qSim_qreg {
 
 		bool getStates(QREG_ST_VAL_ARRAY_TYPE* stArray);
 
-		bool measureState(int q_idx, int q_len, bool m_rand, bool m_coll,
-						  QREG_ST_INDEX_TYPE* m_st, double* m_exp, QREG_ST_INDEX_ARRAY_TYPE* m_vec);
+		bool stateMeasure(int q_idx, int q_len, bool m_rand, bool m_coll,
+						  QREG_ST_INDEX_TYPE* m_st, double* m_pr, QREG_ST_INDEX_ARRAY_TYPE* m_vec);
+		bool stateExpectation(int st_idx, int q_idx, int q_len, QASM_EX_OBSOP_TYPE ex_opsOp, double* m_exp);
 
 		// CUDA device interface control (used by qCpu class)
 		void synchDevStates();
@@ -123,9 +132,21 @@ class qSim_qreg {
 		// support methods for qureg state measurement handling
 		bool do_state_measure(int q_idx, int q_len,  bool do_rnd, bool collapse_st,
 				              QREG_ST_INDEX_TYPE* m_st, double* m_exp, QREG_ST_INDEX_ARRAY_TYPE* m_vec, bool d_vals);
-		double get_state_measure_expectation(int st_idx, int q_idx, int q_len);
+		double get_state_probability(int st_idx, int q_idx, int q_len);
 
 		int get_state_bitval(int st_idx, int q_idx, int q_len);
+
+		// support methods for qureg state expectation handling
+		void get_state_expectations(int q_idx, int q_len, QASM_EX_OBSOP_TYPE ex_opsOp, std::vector<double>* ex_obsOp_vec);
+		void get_state_probabilities(std::vector<double>* pr_vec);
+
+		void kron_product(std::vector<double>* v1, std::vector<double>* v2, std::vector<double>* v3);
+
+		void apply_instruction_and_release(std::list<qSim_qinstruction_core*>* qinstr_list,
+				                           bool* res, std::string* res_str);
+
+		map<QASM_EX_OBSOP_TYPE, std::vector<double>> m_obs_ev_map;
+
 };
 
 #endif /* QSIM_QREG_H_ */

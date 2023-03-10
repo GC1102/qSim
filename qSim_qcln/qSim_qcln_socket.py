@@ -37,6 +37,8 @@ Created on Sat May 28 17:46:04 2022
 * ------------------------------------------------------------------------
 * 1.0   May-2022  Module creation.
 * 1.1   Nov-2022  Moved to qSim v2 and renamed to qSim_qcln_socket.
+* 1.2   Mar-2023  Improved socket transfer performance setting TCP NODELAY 
+*                 flag (2x improvement on client side).
 * 
 * ------------------------------------------------------------------------
 *
@@ -67,6 +69,8 @@ class qSim_qcln_socket():
     def connect(self, ipAddr=QSIM_SERVER_IP_ADDR, port=QSIM_SERVER_PORT):
         # setup socket and connect to qSim server
         self.m_sock_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.m_sock_client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) # set no-delay for best perfo!!
+
         self.m_sock_client.connect((ipAddr, port))
         if self.m_verbose:
             print('qSim-socket-client - server connected @ iaAddr:', ipAddr, ' - port:', port)

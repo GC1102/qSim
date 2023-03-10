@@ -41,6 +41,9 @@
  *                   Handled CPU mode compiling and applied agnostic class renaming
  *                   to qSim_qcpu_device.
  *                   Code clean-up.
+ *  2.2   Feb-2023   Supported qureg state expectation calculation and fixed
+ *                   terminology for state probability measure.
+ *                   Handled QML function blocks (feature map and q-net).
  *
  *  --------------------------------------------------------------------------
  */
@@ -101,30 +104,33 @@ bool qSim_qcpu::switchOff() {
 
 // *********************************************************
 
+// ------------------------
+
+#define SAFE_INSTRUCTION_VALIDITY_CHECK(err_msg_tag) {\
+	if (!qr_instr.is_valid()) {\
+		cerr << "qSim_qcpu::dispatch_message - incorrect " << err_msg_tag << " received!!" << endl;\
+		qr_instr.dump();\
+		int counter = msg_in->get_counter();\
+		int id = QASM_MSG_ID_RESPONSE;\
+		params.insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_NOK));\
+		params.insert(std::make_pair(QASM_MSG_PARAM_TAG_ERROR, err_msg_tag+" transformation syntax error"));\
+		qSim_qasm_message* msg_out = new qSim_qasm_message(counter, id, params);\
+		return msg_out;\
+	}\
+}
+
 // qasm message dispatching for execution entry point
 qSim_qasm_message* qSim_qcpu::dispatch_instruction(qSim_qasm_message* msg_in) {
 	// handle instruction execution based on instruction type and return response
-	//
+
 	// allocate a qureg instruction object and process it
-//	cout << "dispatch_message..." << endl;
-//	msg_in->dump();
 	QASM_MSG_PARAMS_TYPE params;
 	if (qSim_qinstruction_base::is_core(msg_in)) {
 		// perform core instruction
 		qSim_qinstruction_core qr_instr(msg_in);
-//		qr_instr.dump();
 
 		// check instruction correctness
-		if (!qr_instr.is_valid()) {
-			cerr << "qSim_qcpu::dispatch_message - incorrect core instruction received!!" << endl;
-			qr_instr.dump();
-			int counter = msg_in->get_counter();
-			int id = QASM_MSG_ID_RESPONSE;
-			params.insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_NOK));
-			params.insert(std::make_pair(QASM_MSG_PARAM_TAG_ERROR, "qreg core transformation syntax error"));
-			qSim_qasm_message* msg_out = new qSim_qasm_message(counter, id, params);
-			return msg_out;
-		}
+		SAFE_INSTRUCTION_VALIDITY_CHECK(std::string("core instruction"))
 
 		// execute instruction
 		exec_qureg_instruction_core(&qr_instr, &params);
@@ -132,22 +138,22 @@ qSim_qasm_message* qSim_qcpu::dispatch_instruction(qSim_qasm_message* msg_in) {
 	else if (qSim_qinstruction_base::is_block(msg_in)) {
 		// perform block instruction
 		qSim_qinstruction_block qr_instr = qSim_qinstruction_block(msg_in);
-//		qr_instr.dump();
 
 		// check instruction correctness
-		if (!qr_instr.is_valid()) {
-			cerr << "qSim_qcpu::dispatch_instruction - incorrect block instruction received!!" << endl;
-			qr_instr.dump();
-			int counter = msg_in->get_counter();
-			int id = QASM_MSG_ID_RESPONSE;
-			params.insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_NOK));
-			params.insert(std::make_pair(QASM_MSG_PARAM_TAG_ERROR, "qreg block transformation syntax error"));
-			qSim_qasm_message* msg_out = new qSim_qasm_message(counter, id, params);
-			return msg_out;
-		}
+		SAFE_INSTRUCTION_VALIDITY_CHECK(std::string("block instruction"))
 
 		// execute instruction
 		exec_qureg_instruction_block(&qr_instr, &params);
+	}
+	else if (qSim_qinstruction_base::is_block_qml(msg_in)) {
+		// perform QML block instruction
+		qSim_qinstruction_block_qml qr_instr = qSim_qinstruction_block_qml(msg_in);
+
+		// check instruction correctness
+		SAFE_INSTRUCTION_VALIDITY_CHECK(std::string("QML block instruction"))
+
+		// execute instruction
+		exec_qureg_instruction_block_qml(&qr_instr, &params);
 	}
 	else {
 		// error case
@@ -226,6 +232,7 @@ bool qSim_qcpu::exec_qureg_instruction_core(qSim_qinstruction_core* qr_instr,
 	//
 	bool res;
 	std::string res_str;
+	params->clear();
 	switch (qr_instr->m_type) {
 		case QASM_MSG_ID_QREG_ALLOCATE: {
 			// allocate a new qureg of given size and return the handler
@@ -291,20 +298,55 @@ bool qSim_qcpu::exec_qureg_instruction_core(qSim_qinstruction_core* qr_instr,
 			qSim_qreg* qr_obj;
 			SAFE_QREG_OBJ(qr_h, qr_obj);
 			QREG_ST_INDEX_TYPE m_st;
-			double m_exp;
+			double m_pr;
 			QREG_ST_INDEX_ARRAY_TYPE m_vec;
-			res = qr_obj->applyCoreInstruction(qr_instr, &res_str, &m_st, &m_exp, &m_vec);
+			res = qr_obj->applyCoreInstruction(qr_instr, &res_str, &m_st, &m_pr, &m_vec);
 
 			// store result
 			if (res) {
 				// measure done
 				if (m_verbose)
-					cout << "measure ok...m_st: " << m_st << "  m_exp: " << m_exp << "  m_vec.size: " << m_vec.size() << endl;
+					cout << "measure ok...m_st: " << m_st << "  m_pr: " << m_pr << "  m_vec.size: " << m_vec.size() << endl;
 				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_OK));
 				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_QREG_MSTIDX, to_string(m_st)));
-				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_QREG_MEXP, to_string(m_exp)));
+				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_QREG_MSTPR, qr_instr->double_value_to_string(m_pr)));
 				std::string m_vec_str = qr_instr->measure_index_value_to_string(m_vec);
 				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_QREG_MSTIDXS, m_vec_str));
+			}
+			else {
+				// measure error
+				if (m_verbose)
+					cerr << "measure error!!" << endl;
+				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_NOK));
+				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_ERROR, res_str));
+			}
+		}
+		break;
+
+		// --------------------
+
+		case QASM_MSG_ID_QREG_ST_EXPECT: {
+			// calculate qureg state expectation
+			//
+			// extract arguments
+			int qr_h = qr_instr->m_qr_h;
+			if (m_verbose)
+				cout << "qSim_qcpu::exec_qureg_instruction_core expectation - qr_h: " << qr_h << endl;
+//			cout << "qr_instr->m_ex_obsOp:" << qr_instr->m_ex_obsOp << endl;
+
+			// apply to qureg
+			qSim_qreg* qr_obj;
+			SAFE_QREG_OBJ(qr_h, qr_obj);
+			double m_exp;
+			res = qr_obj->applyCoreInstruction(qr_instr, &res_str, &m_exp);
+
+			// store result
+			if (res) {
+				// measure done
+				if (m_verbose)
+					cout << "expectation ok...m_exp: " << m_exp << endl;
+				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_OK));
+				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_QREG_EXSTVAL, qr_instr->double_value_to_string(m_exp)));
 			}
 			else {
 				// measure error
@@ -395,6 +437,52 @@ bool qSim_qcpu::exec_qureg_instruction_block(qSim_qinstruction_block* qr_instr,
 		default: {
 			// error case
 			cerr << "qSim_qcpu::exec_qureg_instruction_block - unhandled qasm message type "
+				 << qr_instr->m_type << "!!" << endl;
+			params->insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_NOK));
+			params->insert(std::make_pair(QASM_MSG_PARAM_TAG_ERROR, "Unhandled qasm message type"));
+			res = false;
+		}
+	}
+	return res;
+}
+
+// -----------------------------------------------------
+
+// qureg QML block instructions handling
+bool qSim_qcpu::exec_qureg_instruction_block_qml(qSim_qinstruction_block_qml* qr_instr,
+		                                         QASM_MSG_PARAMS_TYPE* params) {
+	// execute qureg QML block instruction using given instruction fields - based on instruction type
+	//
+	bool res;
+	std::string res_str;
+	switch (qr_instr->m_type) {
+		case QASM_MSG_ID_QREG_ST_TRANSFORM: {
+			// transform qureg state
+			//
+			// extract arguments
+			int qr_h = qr_instr->m_qr_h;
+			if (m_verbose)
+				cout << "qSim_qcpu::exec_qureg_instruction_block_qml transform - qr_h: " << qr_h << endl;
+
+			// apply to qureg
+			qSim_qreg* qr_obj;
+			SAFE_QREG_OBJ(qr_h, qr_obj);
+			res = qr_obj->applyBlockInstructionQml(qr_instr, &res_str);
+
+			// store result
+			if (res)
+				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_OK));
+			else {
+				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_NOK));
+				params->insert(std::make_pair(QASM_MSG_PARAM_TAG_ERROR, res_str));
+			}
+		}
+		break;
+		// --------------------
+
+		default: {
+			// error case
+			cerr << "qSim_qcpu::exec_qureg_instruction_block_qml - unhandled qasm message type "
 				 << qr_instr->m_type << "!!" << endl;
 			params->insert(std::make_pair(QASM_MSG_PARAM_TAG_RESULT, QASM_MSG_PARAM_VAL_NOK));
 			params->insert(std::make_pair(QASM_MSG_PARAM_TAG_ERROR, "Unhandled qasm message type"));

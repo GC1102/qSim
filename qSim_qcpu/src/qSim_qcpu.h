@@ -40,6 +40,7 @@
  *                   Handled CPU mode compiling and applied agnostic class renaming
  *                   to qSim_qcpu_device.
  *                   Code clean-up.
+ *  2.2   Feb-2023   Handled QML function blocks (feature map and q-net).
  *
  *  --------------------------------------------------------------------------
  */
@@ -53,6 +54,7 @@
 #include "qSim_qreg.h"
 #include "qSim_qinstruction_core.h"
 #include "qSim_qinstruction_block.h"
+#include "qSim_qinstruction_block_qml.h"
 
 #ifndef __QSIM_CPU__
 #include <qSim_qcpu_device_GPU_CUDA.h>
@@ -88,6 +90,9 @@ class qSim_qcpu {
 
 		// qureg block instructions handling
 		bool exec_qureg_instruction_block(qSim_qinstruction_block*, QASM_MSG_PARAMS_TYPE*);
+
+		// qureg QML block instructions handling
+		bool exec_qureg_instruction_block_qml(qSim_qinstruction_block_qml*, QASM_MSG_PARAMS_TYPE*);
 
 		// diagnostics
 		void dump();

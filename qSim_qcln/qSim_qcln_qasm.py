@@ -40,6 +40,7 @@ Created on Sat May 28 17:46:04 2022
 *                 to qSim v2.0 QASM.
 * 1.2   Feb-2023  Added macro to identify 1-qubit parametric q-functions.
 *                 Supported qureg state expectations calculation.
+*                 Handled QML function blocks (feature map and q-net).
 * 
 * ------------------------------------------------------------------------
 *
@@ -78,22 +79,23 @@ QASM_MSG_PARVAL_SEP = "="
 QASM_MSG_PARAM_TAG_ID         = "id"
 QASM_MSG_PARAM_TAG_TOKEN      = "token"
 
-QASM_MSG_PARAM_TAG_QREG_QN    = "qr_n"
-QASM_MSG_PARAM_TAG_QREG_H     = "qr_h"
-QASM_MSG_PARAM_TAG_QREG_STIDX = "qr_stIdx"
-QASM_MSG_PARAM_TAG_QREG_STVALS = "qr_stVals"
-QASM_MSG_PARAM_TAG_QREG_MQIDX = "qr_mQidx"
-QASM_MSG_PARAM_TAG_QREG_MQLEN = "qr_mQlen"
-QASM_MSG_PARAM_TAG_QREG_MRAND = "qr_mRand"
-QASM_MSG_PARAM_TAG_QREG_MCOLL = "qr_mStColl"
-QASM_MSG_PARAM_TAG_QREG_MSTIDX = "qr_mStIdx"
-QASM_MSG_PARAM_TAG_QREG_MPR   = "qr_mStPr"
+QASM_MSG_PARAM_TAG_QREG_QN      = "qr_n"
+QASM_MSG_PARAM_TAG_QREG_H       = "qr_h"
+QASM_MSG_PARAM_TAG_QREG_STIDX   = "qr_stIdx"
+QASM_MSG_PARAM_TAG_QREG_STVALS  = "qr_stVals"
+QASM_MSG_PARAM_TAG_QREG_MQIDX   = "qr_mQidx"
+QASM_MSG_PARAM_TAG_QREG_MQLEN   = "qr_mQlen"
+QASM_MSG_PARAM_TAG_QREG_MRAND   = "qr_mRand"
+QASM_MSG_PARAM_TAG_QREG_MCOLL   = "qr_mStColl"
+QASM_MSG_PARAM_TAG_QREG_MSTIDX  = "qr_mStIdx"
+QASM_MSG_PARAM_TAG_QREG_MPR     = "qr_mStPr"
 QASM_MSG_PARAM_TAG_QREG_MSTIDXS = "qr_mStIdxs"
-QASM_MSG_PARAM_TAG_QREG_ESTIDX = "qr_exStIdx"
-QASM_MSG_PARAM_TAG_QREG_EQIDX = "qr_exQidx"
-QASM_MSG_PARAM_TAG_QREG_EQLEN = "qr_exQlen"
-QASM_MSG_PARAM_TAG_QREG_EOBSOP = "qr_exObsOp"
-QASM_MSG_PARAM_TAG_QREG_ESTVAL = "qr_exStVal"
+QASM_MSG_PARAM_TAG_QREG_ESTIDX  = "qr_exStIdx"
+QASM_MSG_PARAM_TAG_QREG_EQIDX   = "qr_exQidx"
+QASM_MSG_PARAM_TAG_QREG_EQLEN   = "qr_exQlen"
+QASM_MSG_PARAM_TAG_QREG_EOBSOP  = "qr_exObsOp"
+QASM_MSG_PARAM_TAG_QREG_ESTVAL  = "qr_exStVal"
+
 QASM_MSG_PARAM_TAG_F_TYPE     = "f_type"
 QASM_MSG_PARAM_TAG_F_SIZE     = "f_size"
 QASM_MSG_PARAM_TAG_F_REP      = "f_rep"
@@ -102,6 +104,11 @@ QASM_MSG_PARAM_TAG_F_CRANGE   = "f_cRange"
 QASM_MSG_PARAM_TAG_F_TRANGE   = "f_tRange"
 QASM_MSG_PARAM_TAG_F_UTYPE    = "f_uType"
 QASM_MSG_PARAM_TAG_F_ARGS     = "f_args"
+
+QASM_MSG_PARAM_TAG_FBQML_REP      = "fqml_rep"         
+QASM_MSG_PARAM_TAG_FBQML_ENTANG   = "fqml_entang_type" 
+QASM_MSG_PARAM_TAG_FBQML_SUBTYPE  = "fqml_subtype"	
+QASM_MSG_PARAM_TAG_FBQML_FMAPVEC  = "fqml_fmap_fvec"	
 
 QASM_MSG_PARAM_TAG_RESULT   = "result"
 QASM_MSG_PARAM_TAG_ERROR    = "error"
@@ -162,12 +169,18 @@ QASM_FB_TYPE_CSWAP_Qn = 103
 def QASM_FB_IS_BLOCK(ft):
     return ((ft >= QASM_FB_TYPE_SWAP_Q1) and (ft <= QASM_FB_TYPE_CSWAP_Qn))
 
+QASM_FBQML_TYPE_FMAP = 200
+QASM_FBQML_TYPE_QNET = 201
+
+def QASM_FB_IS_BLOCK_QML(ft):
+    return ((ft >= QASM_FBQML_TYPE_FMAP) and (ft <= QASM_FBQML_TYPE_QNET))
+
 # --------------------
 
 # function forms
 QASM_F_FORM_NULL = -1
 
-QASM_F_FORM_DIRECT = 0
+QASM_F_FORM_DIRECT  = 0
 QASM_F_FORM_INVERSE = 1
 
 # --------------------
@@ -175,8 +188,31 @@ QASM_F_FORM_INVERSE = 1
 # exectation observable operator types
 QASM_EX_OBSOP_TYPE_NULL = -1
 
-QASM_EX_OBSOP_TYPE_COMP = 0 
+QASM_EX_OBSOP_TYPE_COMP   = 0 
 QASM_EX_OBSOP_TYPE_PAULIZ = 1
+
+# --------------------
+
+# data type and supported entanglement types
+QASM_QML_ENTANG_TYPE_NULL = -1
+
+QASM_QML_ENTANG_TYPE_LINEAR   = 0 
+QASM_QML_ENTANG_TYPE_CIRCULAR = 1
+
+# --------------------
+
+# data type and supported feature map types
+QASM_QML_FMAP_TYPE_NULL = -1
+
+QASM_QML_FMAP_TYPE_PAULI_Z  = 0 
+QASM_QML_FMAP_TYPE_PAULI_ZZ = 1
+
+# --------------------
+
+# data type and supported qnetwork types
+QASM_QML_QNET_TYPE_NULL = -1
+
+QASM_QML_QNET_TYPE_REAL_AMPL  = 0 
 
 # --------------------------------------------------------
 
@@ -219,6 +255,14 @@ class qSim_qcln_qasm():
     @staticmethod
     def is_ftype_qn(ftype):
         return ftype in range(QASM_F_TYPE_MCS_LRU, QASM_F_TYPE_MCS_LRU)
+    
+    @staticmethod
+    def is_ftype_block(ftype):
+        return QASM_FB_IS_BLOCK(ftype)
+    
+    @staticmethod
+    def is_ftype_block_qml(ftype):
+        return QASM_FB_IS_BLOCK_QML(ftype)
     
     # -------------------------
     # encoding/decoding
@@ -290,6 +334,7 @@ class qSim_qcln_qasm():
     # diagnostics mehods
     
     def dump(self):
+        # dump message attributes on stdout
         print('*** qSim_qasm_message dump ***')
         print()
 
@@ -302,5 +347,6 @@ class qSim_qcln_qasm():
         print('**********************************')
         print()
         
-        
+    # -------------------------
+
     

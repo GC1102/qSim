@@ -39,6 +39,8 @@ Created on Sat May 28 21:58:57 2022
 * 1.1   Nov-2022  Moved to qSim v2 and renamed to qSim_qcln_access_client.
 * 1.2   Feb-2023  Fixed terminology for measure output (probability returned).
 *                 Supported qureg state expectations calculation.
+*                 Handled QML function blocks (feature map and q-net).
+*                 Supported diagnostic flag for getting message size info.
 * 
 * ------------------------------------------------------------------------
 *
@@ -280,7 +282,7 @@ class qSim_qcln_access_client():
     # -------
 
     def qreg_state_transform(self, qr_h, f_type, f_size, f_rep, f_lsq, f_crng=[], f_trng=[], f_args=None, 
-                             fu_type=qasm.QASM_F_TYPE_NULL, fu_size=0):
+                             fu_type=qasm.QASM_F_TYPE_NULL, fu_size=0, diag=False):
         # print('qreg_state_transform...f_args:', f_args)
         if qasm.QASM_F_IS_Q2(fu_type):
             # remove arg #3 (qureg size - not needed for QASM!!)
@@ -303,11 +305,50 @@ class qSim_qcln_access_client():
         msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_F_ARGS, self.fargs_to_string(f_args, f_type, fu_type))
         
         # send message
+        raw_msg1 = msg_reg.to_raw_message()
+        self.m_qsock.send_raw_message(raw_msg1)
+        self.m_counter += 1
+        if self.m_verbose:
+            print('qSim-access - qureg state transformation request sent - qr_h:', qr_h)
+            print('raw_msg:', raw_msg1)
+        
+        # receive response
+        raw_msg2 = self.m_qsock.receive_raw_message()
+        msg_res = qasm.qSim_qcln_qasm()
+        msg_res.from_raw_message(raw_msg2)
+        res = self.check_response_message(msg_res)
+        if res:
+            # request ok 
+            if self.m_verbose:
+                print('qSim-access - qreg state transformation OK')
+        if not diag:
+            return res
+        else:            
+            return res, (len(raw_msg1), len(raw_msg2))
+    
+    # -------
+    
+    def qreg_state_transform_qml(self, qr_h, f_type, f_rep, f_entang, f_subtype, f_args=None):
+        # print('qreg_state_transform_qml...f_vec:', f_vec)
+        
+        # prepare message
+        msg_reg = qasm.qSim_qcln_qasm()
+        msg_reg.m_counter = self.m_counter
+        msg_reg.m_id = qasm.QASM_MSG_ID_QREG_ST_TRANSFORM
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_TOKEN, self.m_token)
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_QREG_H, str(qr_h))
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_F_TYPE, str(f_type))
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_FBQML_REP, str(f_rep))
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_FBQML_ENTANG, str(f_entang))
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_FBQML_SUBTYPE, str(f_subtype))
+        msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_F_ARGS, self.fargs_to_string(f_args, f_type, qasm.QASM_F_TYPE_NULL))
+        
+        # send message
         raw_msg = msg_reg.to_raw_message()
         self.m_qsock.send_raw_message(raw_msg)
         self.m_counter += 1
         if self.m_verbose:
-            print('qSim-access - qureg state transformation request sent - qr_h:', qr_h)
+            print('qSim-access - qureg state QML transformation request sent - qr_h:', qr_h)
             print('raw_msg:', raw_msg)
         
         # receive response
@@ -318,7 +359,7 @@ class qSim_qcln_access_client():
         if res:
             # request ok 
             if self.m_verbose:
-                print('qSim-access - qreg state transformation OK')
+                print('qSim-access - qreg state QML transformation OK')
         return res
     
     # -------
@@ -358,7 +399,7 @@ class qSim_qcln_access_client():
             
     # -------
     
-    def qreg_measure(self, qr_h, q_idx, q_len, m_rand, st_coll):
+    def qreg_measure(self, qr_h, q_idx, q_len, m_rand, st_coll, diag=False):
         # state measurement for given qureg handler
         
         # send message
@@ -371,16 +412,16 @@ class qSim_qcln_access_client():
         msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_QREG_MQLEN, str(q_len))
         msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_QREG_MRAND, str(int(m_rand)))
         msg_reg.add_param_tagValue(qasm.QASM_MSG_PARAM_TAG_QREG_MCOLL, str(int(st_coll)))
-        raw_msg = msg_reg.to_raw_message()
-        self.m_qsock.send_raw_message(raw_msg)
+        raw_msg1 = msg_reg.to_raw_message()
+        self.m_qsock.send_raw_message(raw_msg1)
         self.m_counter += 1
         if self.m_verbose:
             print('qSim-access - qureg state get values request sent - qr_h:', qr_h)
         
         # receive response
-        raw_msg = self.m_qsock.receive_raw_message()
+        raw_msg2 = self.m_qsock.receive_raw_message()
         msg_res = qasm.qSim_qcln_qasm()
-        msg_res.from_raw_message(raw_msg)
+        msg_res.from_raw_message(raw_msg2)
         res = self.check_response_message(msg_res)
         if res:
             # request ok - get qreg measurement values
@@ -411,12 +452,19 @@ class qSim_qcln_access_client():
             m_st = None
             m_pr = None
             m_vec = None
-        return m_st, m_pr, m_vec
+        if not diag:
+            return m_st, m_pr, m_vec
+        else:            
+            return m_st, m_pr, m_vec, (len(raw_msg1), len(raw_msg2))
             
     # -------
     
     def qreg_expectation(self, qr_h, st_idx, q_idx, q_len, q_obs_op):
         # state expectation for given qureg handler
+        
+        # check index values
+        if st_idx is None:
+            st_idx = -1            
         
         # send message
         msg_reg = qasm.qSim_qcln_qasm()
@@ -540,6 +588,11 @@ class qSim_qcln_access_client():
                     fargs_str += qSim_qcln_access_client.farg_range_2_string(fargs[1])
                     if len(fargs) > 2:
                         fargs_str += qSim_qcln_access_client.farg_double_2_string(fargs[2])
+
+            elif qasm.QASM_FB_IS_BLOCK_QML(ftype):
+                # arguments sequence conversion
+                for farg in fargs:
+                    fargs_str += qSim_qcln_access_client.farg_double_2_string(farg)
                 
             # ending tag
             if fargs_str[-1] == ',':

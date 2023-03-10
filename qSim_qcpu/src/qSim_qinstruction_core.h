@@ -32,6 +32,9 @@
  *  Ver   Date       Change
  *  --------------------------------------------------------------------------
  *  1.0   Nov-2022   Module creation.
+ *  1.1   Feb-2023   Supported qureg state expectation calculation and fixed
+ *                   terminology for state probability measure.
+ *                   Handled QML function blocks (feature map and q-net).
  *
  *  --------------------------------------------------------------------------
  */
@@ -58,7 +61,7 @@ public:
 	// qureg handling related
 	int m_qn;
 	int m_qr_h;
-	unsigned m_st_idx;
+	int m_st_idx;
 	QREG_ST_VAL_ARRAY_TYPE m_st_array;
 
 	// qureg state measure related
@@ -66,6 +69,11 @@ public:
 	int m_q_len;
 	bool m_rand;
 	bool m_coll;
+
+	// qureg state expectation related
+//	int m_q_idx;
+//	int m_q_len;
+	QASM_EX_OBSOP_TYPE m_ex_obsOp;
 
 	// transformation function related
 	QASM_F_TYPE m_ftype;
@@ -87,9 +95,10 @@ public:
 	virtual ~qSim_qinstruction_core();
 
 	// other constructors
-	qSim_qinstruction_core(QASM_MSG_ID_TYPE, int qr_h, unsigned st_idx=0); // allocate, reset, set (pure state), peek
+	qSim_qinstruction_core(QASM_MSG_ID_TYPE, int qr_h, int st_idx=0); // allocate, reset, set (pure state), peek
 	qSim_qinstruction_core(QASM_MSG_ID_TYPE, int qr_h, QREG_ST_VAL_ARRAY_TYPE); // set (arbitrary state)
 	qSim_qinstruction_core(QASM_MSG_ID_TYPE, int qr_h, int, int, bool, bool); // measure
+	qSim_qinstruction_core(QASM_MSG_ID_TYPE, int qr_h, int, int, int, QASM_EX_OBSOP_TYPE); // expectation
 	qSim_qinstruction_core(QASM_MSG_ID_TYPE, int qr_h, QASM_F_TYPE ftype, int fsize, int frep, int flsq,
 						   QREG_F_INDEX_RANGE_TYPE fcrng=QREG_F_INDEX_RANGE_TYPE(),
 						   QREG_F_INDEX_RANGE_TYPE ftrng=QREG_F_INDEX_RANGE_TYPE(),

@@ -31,6 +31,7 @@
  *  1.0   May-2022   Module creation cloning former qreg_qsocket class.
  *  1.1   Dec-2022   Performed message length check vs. maximum value, to detect
  *                   and handle communication sync loss with clients.
+ *  1.2   Feb-2023   Handled socket client polling timeout passage as init argument.
  *
  *  --------------------------------------------------------------------------
  */
@@ -55,13 +56,13 @@ using namespace std;
 // -> polling loop timeout (msec)
 // -> max message length (bytes)
 
-#define QIO_LOOP_TIMEOUT_MSEC 100
 #define QIO_MSG_MAX_LEN 65536
 
 
 qSim_qio_socket_server::qSim_qio_socket_server(bool verbose) : qSim_qsocket_server(verbose) {
 	// nothing to do...
 	m_dataInOut_cb = NULL;
+	m_clnPollingTimeout = QIO_SOCK_CLN_MSG_LOOP_TIMEOUT_USEC;
 }
 
 qSim_qio_socket_server::~qSim_qio_socket_server(){
@@ -80,6 +81,10 @@ qSim_qio_socket_server::~qSim_qio_socket_server(){
 
 void qSim_qio_socket_server::set_dataInOut_callback(qSim_qio_socket_server_cb* cb) {
 	m_dataInOut_cb = cb;
+}
+
+void qSim_qio_socket_server::set_clientPollingTimeout(int timeout) {
+	m_clnPollingTimeout = timeout;
 }
 
 // --------------------------------
@@ -161,7 +166,7 @@ void qSim_qio_socket_server::doLoop() {
 	// connect to client and start handling loop
 	cout << "qio-server...doLoop..." << endl;
 
-	// loop for accepting clients
+	// loop for accepting clients - this loop doesn't need to be super-responsive!
 	while (m_keepRunning.test_and_set()) {
 		//accept, create a new socket descriptor to handle the new connection with client
 		if (m_verbose)
@@ -176,20 +181,20 @@ void qSim_qio_socket_server::doLoop() {
 		m_clnThr_id.detach();
 
 		// sleep a while
-		this_thread::sleep_for(chrono::milliseconds(QIO_LOOP_TIMEOUT_MSEC));
+		this_thread::sleep_for(chrono::microseconds(QIO_SOCK_CLN_ACCEPT_LOOP_TIMEOUT_USEC)); // a fixed polling timeout can work here...
 	}
 	cout << "qSim_qio_socket_server::doLoop done." << endl;
 }
 
 void qSim_qio_socket_server::doLoop_client() {
 	// handle exchange with client
-	cout << "qio-server...doLoop_client..." << endl;
+	cout << "qio-server...doLoop_client...m_clnPollingTimeout: " << m_clnPollingTimeout << endl;
 
 	// setup message structure
 	struct qio_raw_msg msg_in;
 	struct qio_raw_msg msg_out;
 
-	// loop for exchanging messages with a client
+	// loop for exchanging messages with a client - this is a performance critical part!
 	bool loop = true;
 	while (loop) {
 		// check client activity flag - for read
@@ -248,8 +253,8 @@ void qSim_qio_socket_server::doLoop_client() {
 			break;
 		}
 
-		// sleep a while
-		this_thread::sleep_for(chrono::milliseconds(QIO_LOOP_TIMEOUT_MSEC));
+		// sleep a while - based on given timeout
+		this_thread::sleep_for(chrono::microseconds(m_clnPollingTimeout));
 	}
 
 	// client handling completed

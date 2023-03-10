@@ -29,6 +29,8 @@
  *  1.0   May-2022   Module creation.
  *  1.1   Nov-2022   Handled qio and qcpu handlers are dynamic attributes and
  *                   initialised passing verbose flag.
+ *  1.2   Feb-2023   Handled message reading and socket polling timeouts passage
+ *                   as init arguments.
  *
  *  --------------------------------------------------------------------------
  */
@@ -47,6 +49,12 @@
 #define QSIM_OK    QBUS_SOCK_OK
 #define QSIM_ERROR QBUS_SOCK_ERROR
 
+// thread loop timeout for message reading
+#define QSIM_MSG_LOOP_TIMEOUT_MSEC 10
+
+// thread loop timeout for socket polling
+#define QSIM_SOCKET_LOOP_TIMEOUT_MSEC 10
+
 
 class qSim {
 
@@ -55,7 +63,9 @@ class qSim {
 		qSim(bool verbose=false);
 		virtual ~qSim();
 
-		int init(std::string ipAddr, int port);
+		int init(std::string ipAddr, int port,
+				 int msgTimeout=QSIM_MSG_LOOP_TIMEOUT_MSEC,
+				 int sockTimeout=QSIM_SOCKET_LOOP_TIMEOUT_MSEC);
 
 		void startLoop();
 		void stopLoop();
@@ -71,6 +81,7 @@ class qSim {
 		void doLoop();
 		std::thread m_thr_id;
 		std::atomic_flag m_keepRunning = ATOMIC_FLAG_INIT;
+		int m_msgTimeout;
 
 		bool m_verbose;
 };

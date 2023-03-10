@@ -45,6 +45,7 @@
  *                   Code clean-up.
  *  1.3   Feb-2023   Supported qureg state expectation calculation and fixed
  *                   terminology for state probability measure.
+ *                   Handled QML function blocks (feature map and q-net).
  *
  *  --------------------------------------------------------------------------
  */
@@ -112,6 +113,11 @@
 #define QASM_MSG_PARAM_TAG_F_TRANGE   "f_tRange"	// function target qubit index range (controlled-U only)
 #define QASM_MSG_PARAM_TAG_F_UTYPE    "f_uType"		// function-U type
 #define QASM_MSG_PARAM_TAG_F_ARGS     "f_args"		// function arguments, including function-U args if any
+
+#define QASM_MSG_PARAM_TAG_FBQML_REP      "fqml_rep"         // QML block repetitions
+#define QASM_MSG_PARAM_TAG_FBQML_ENTANG   "fqml_entang_type" // QML entanglement type
+#define QASM_MSG_PARAM_TAG_FBQML_SUBTYPE  "fqml_subtype"	 // QML subtype (PauliZ/PauliZZ for fmap or RealAmpl/TBD for qnet)
+#define QASM_MSG_PARAM_TAG_FBQML_QNETTYPE "fqml_qnet_type"	 // QML qnet layout type
 
 #define QASM_MSG_PARAM_TAG_RESULT     "result"		// instruction result
 #define QASM_MSG_PARAM_TAG_ERROR      "error"		// instruction result error details
@@ -209,13 +215,17 @@ enum QASM_F_TYPE {
 
 	// n qubits
 	QASM_F_TYPE_QN_MCSLRU, // multi-controlled short/long range U
-	QASM_F_TYPE_Q3_CCX, // aka Toffoli
+	QASM_F_TYPE_Q3_CCX,    // aka Toffoli
 
 	// function blocks
 	QASM_FB_TYPE_Q1_SWAP = 100, // 1-qubit swap
 	QASM_FB_TYPE_QN_SWAP,       // n-qubit swap
-	QASM_FB_TYPE_Q1_CSWAP,       // 1-qubit c-swap
-	QASM_FB_TYPE_QN_CSWAP       // n-qubit c-swap
+	QASM_FB_TYPE_Q1_CSWAP,      // 1-qubit c-swap
+	QASM_FB_TYPE_QN_CSWAP,      // n-qubit c-swap
+
+	// function QML blocks
+	QASM_FBQML_TYPE_FMAP = 200, // feature-map
+	QASM_FBQML_TYPE_QNET,       // qvc q-network
 
 	// others...
 	// ...
@@ -226,7 +236,9 @@ enum QASM_F_TYPE {
 #define QASM_F_TYPE_IS_GATE_2QUBIT(ft) ((ft >= QASM_F_TYPE_Q2_CU) && (ft <= QASM_F_TYPE_Q2_CZ))
 #define QASM_F_TYPE_IS_GATE_NQUBIT(ft) ((ft >= QASM_F_TYPE_QN_MCSLRU) && (ft <= QASM_F_TYPE_Q3_CCX))
 
+#define QASM_F_TYPE_IS_FUNC(ft) (QASM_F_TYPE_IS_GATE_1QUBIT(ft) || QASM_F_TYPE_IS_GATE_2QUBIT(ft) || QASM_F_TYPE_IS_GATE_NQUBIT(ft))
 #define QASM_F_TYPE_IS_FUNC_BLOCK(ft) ((ft >= QASM_FB_TYPE_Q1_SWAP) && (ft <= QASM_FB_TYPE_QN_CSWAP))
+#define QASM_F_TYPE_IS_FUNC_BLOCK_QML(ft) ((ft >= QASM_FBQML_TYPE_FMAP) && (ft <= QASM_FBQML_TYPE_QNET))
 
 // ----------------------------------
 
@@ -251,10 +263,52 @@ enum QASM_EX_OBSOP_TYPE {
 	QASM_EX_OBSOP_TYPE_PAULIZ,
 	// add others here...
 	// ...
-
 };
 
 // ----------------------------------
 
+///////////////////////////////////////////////////////////////////////////
+//  QASM qml function blocks handling constants
+///////////////////////////////////////////////////////////////////////////
+
+// data type and supported entanglement types
+
+enum QASM_QML_ENTANG_TYPE {
+	// null value
+	QASM_QML_ENTANG_TYPE_NULL = -1,
+
+	QASM_QML_ENTANG_TYPE_LINEAR = 0,
+	QASM_QML_ENTANG_TYPE_CIRCULAR,
+
+	// add others here...
+	// ...
+};
+
+// data type and supported feature map types
+
+enum QASM_QML_FMAP_TYPE {
+	// null value
+	QASM_QML_FMAP_TYPE_NULL = -1,
+
+	QASM_QML_FMAP_TYPE_PAULI_Z = 0,
+	QASM_QML_FMAP_TYPE_PAULI_ZZ,
+
+	// add others here...
+	// ...
+};
+
+// data type and supported qnet layout types
+
+enum QASM_QML_QNET_LAY_TYPE {
+	// null value
+	QASM_QML_QNET_LAY_TYPE_NULL = -1,
+
+	QASM_QML_QNET_LAY_TYPE_REAL_AMPL = 0,
+
+	// add others here...
+	// ...
+};
+
+// ----------------------------------
 
 #endif /* QSIM_QASM_H_ */

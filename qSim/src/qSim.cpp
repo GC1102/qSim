@@ -30,6 +30,8 @@
  *  1.1   Nov-2022   Updated to align to changes in QASM module.
  *                   Handled qio and qcpu handlers are dynamic attributes and
  *                   initialised passing verbose flag.
+ *  1.2   Feb-2023   Handled message reading and socket polling timeouts passage
+ *                   as init arguments.
  *
  *  --------------------------------------------------------------------------
  */
@@ -41,15 +43,14 @@ using namespace std;
 #include "qSim.h"
 
 
-// thread loop timeout
-#define LOOP_TIMEOUT_MSEC 100
-
-
 // constructor
 qSim::qSim(bool verbose) {
 	// init handlers
 	m_qioHandler = new qSim_qio(verbose);
 	m_qcpuHandler = new qSim_qcpu(verbose);
+
+	// set message loop timeout value
+	m_msgTimeout = QSIM_MSG_LOOP_TIMEOUT_MSEC;
 
 	// set verbose level
 	m_verbose = verbose;
@@ -64,9 +65,10 @@ qSim::~qSim() {
 
 ///////////////////////////////////////////////////////////////////
 
-int qSim::init(std::string ipAddr, int port) {
+int qSim::init(std::string ipAddr, int port, int msgTimeout, int sockTimeout) {
 	// Initialize qIo handler
-	int ret = m_qioHandler->init(ipAddr, port);
+	m_msgTimeout = msgTimeout;
+	int ret = m_qioHandler->init(ipAddr, port, sockTimeout);
 	if (m_verbose) {
 		if (ret == QBUS_SOCK_OK)
 			cout << "qSim::init done - ipAddr: " << ipAddr << " port: " << port << endl << endl;
@@ -102,9 +104,9 @@ void qSim::stopLoop() {
 
 // thread loop handling method
 void qSim::doLoop() {
-	cout << "qSim...doLoop..." << endl;
+	cout << "qSim...doLoop...m_msgTimeout:" << m_msgTimeout << endl;
 
-	// loop
+	// loop for routing incoming & outcoming messages - this is a performance critical part!
 	while (m_keepRunning.test_and_set()) {
 
 		// check qio input queue for instructions from client
@@ -130,7 +132,7 @@ void qSim::doLoop() {
 		}
 
 		// sleep
-		this_thread::sleep_for(chrono::milliseconds(LOOP_TIMEOUT_MSEC));
+		this_thread::sleep_for(chrono::microseconds(m_msgTimeout));
 	}
 
 	cout << "qSim::doLoop done." << endl;

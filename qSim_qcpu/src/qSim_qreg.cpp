@@ -45,6 +45,9 @@
  *                   Supported q-function blocks - swap and cswap.
  *                   Handled CPU mode compiling and applied agnostic device class naming.
  *                   Code clean-up.
+ *  2.2   Feb-2023   Supported qureg state expectation calculation and fixed
+ *                   terminology for state probability measure.
+ *                   Handled QML function blocks (feature map and q-net).
  *
  *  --------------------------------------------------------------------------
  */
@@ -54,6 +57,7 @@
 #include <iostream>
 #include <complex>
 #include <list>
+#include <vector>
 using namespace std;
 
 #include <string.h>
@@ -88,6 +92,10 @@ qSim_qreg::qSim_qreg(int qn, qSim_qcpu_device* qcpu_dev, bool verbose) {
 	m_qcpu_device->dev_qreg_host2device(&m_devStates_x, m_states_x, m_totStates);
 	m_qcpu_device->dev_qreg_host2device(&m_devStates_y, m_states_x, m_totStates);
 	m_syncFlag = true;
+
+	// set observable type arrays
+	m_obs_ev_map[QASM_EX_OBSOP_TYPE_COMP] = {1.0, 1.0};
+	m_obs_ev_map[QASM_EX_OBSOP_TYPE_PAULIZ] = {1.0, -1.0};
 
 	// store verbose flag setting
 	m_verbose = verbose;
@@ -172,7 +180,7 @@ bool qSim_qreg::applyCoreInstruction(qSim_qinstruction_core* qr_instr, std::stri
 // -------------------------------------
 
 bool qSim_qreg::applyCoreInstruction(qSim_qinstruction_core* qr_instr, std::string* res_str,
-									 QREG_ST_INDEX_TYPE* m_st, double* m_exp, QREG_ST_INDEX_ARRAY_TYPE* m_vec) {
+									 QREG_ST_INDEX_TYPE* m_st, double* m_pr, QREG_ST_INDEX_ARRAY_TYPE* m_vec) {
 	// handle instruction execution based on instruction type and return response
 	// for qureg state measurement instruction
 
@@ -186,9 +194,41 @@ bool qSim_qreg::applyCoreInstruction(qSim_qinstruction_core* qr_instr, std::stri
 			bool m_coll = qr_instr->m_coll;
 
 			// apply to qureg
-			res = measureState(q_idx, q_len, m_rand, m_coll, m_st, m_exp, m_vec);
+			res = stateMeasure(q_idx, q_len, m_rand, m_coll, m_st, m_pr, m_vec);
 			if (!res)
-				*res_str = "measureState generic error";
+				*res_str = "stateMeasure generic error";
+		}
+		break;
+
+		default: {
+			res = false;
+		}
+	}
+
+	return res;
+}
+
+// -------------------------------------
+
+bool qSim_qreg::applyCoreInstruction(qSim_qinstruction_core* qr_instr, std::string* res_str,
+									 double* m_exp) {
+	// handle instruction execution based on instruction type and return response
+	// for qureg state expectation instruction
+
+	bool res;
+	switch (qr_instr->m_type) {
+		case QASM_MSG_ID_QREG_ST_EXPECT: {
+			// extract arguments
+			int st_idx = qr_instr->m_st_idx;
+			int q_idx = qr_instr->m_q_idx;
+			int q_len = qr_instr->m_q_len;
+			QASM_EX_OBSOP_TYPE ex_opsOp = qr_instr->m_ex_obsOp;
+//			cout << "qr_instr->m_ex_obsOp:" << qr_instr->m_ex_obsOp << "...ex_opsOp:" << ex_opsOp << endl;
+
+			// apply to qureg
+			res = stateExpectation(st_idx, q_idx, q_len, ex_opsOp, m_exp);
+			if (!res)
+				*res_str = "stateExpectation generic error";
 		}
 		break;
 
@@ -275,20 +315,7 @@ bool qSim_qreg::applyBlockInstruction(qSim_qinstruction_block* qr_instr, std::st
 				cout << "applyBlockInstruction...qinstr_list.size: " << qinstr_list.size() << endl;
 
 			// apply to qureg
-			for (std::list<qSim_qinstruction_core*>::iterator it = qinstr_list.begin(); it != qinstr_list.end(); ++it) {
-				res = transform((*it)->m_ftype, (*it)->m_fsize, (*it)->m_frep, (*it)->m_flsq,
-						        (*it)->m_fcrng, (*it)->m_ftrng, (*it)->m_fargs,
-								(*it)->m_futype, (*it)->m_fucrng, (*it)->m_futrng, (*it)->m_fuargs);
-				if (!res) {
-					*res_str = "block stateTransform generic error";
-					break;
-				}
-			}
-
-			// release list
-			for (std::list<qSim_qinstruction_core*>::iterator it = qinstr_list.begin(); it != qinstr_list.end(); ++it) {
-				delete *it;
-			}
+			apply_instruction_and_release(&qinstr_list, &res, res_str);
 		}
 		break;
 
@@ -298,6 +325,79 @@ bool qSim_qreg::applyBlockInstruction(qSim_qinstruction_block* qr_instr, std::st
 	}
 
 	return res;
+}
+
+// -------------------------------------
+// -------------------------------------
+
+bool qSim_qreg::applyBlockInstructionQml(qSim_qinstruction_block_qml* qr_instr, std::string* res_str) {
+	// handle QML block instruction execution based on instruction type and return response
+
+	bool res;
+	switch (qr_instr->m_type) {
+		case QASM_MSG_ID_QREG_ST_TRANSFORM: {
+			// extract arguments
+			QASM_F_TYPE ftype = qr_instr->m_ftype;
+
+			// translate into core instructions
+			std::list<qSim_qinstruction_core*> qinstr_list;
+			switch (ftype) {
+				case QASM_FBQML_TYPE_FMAP: {
+					qr_instr->unwrap_block_fmap(&qinstr_list, m_verbose);
+				}
+				break;
+
+				case QASM_FBQML_TYPE_QNET: {
+					qr_instr->unwrap_block_qnet(m_totQubits, &qinstr_list, m_verbose);
+				}
+				break;
+
+				default: {
+					// error case
+					cerr << "qSim_qreg::applyBlockInstructionQml - unhandled function block type ["
+						 << ftype << "]!!" << endl;
+					res = false;
+				}
+			}
+			if (m_verbose)
+				cout << "applyBlockInstruction...qinstr_list.size: " << qinstr_list.size() << endl;
+
+			// apply to qureg
+			apply_instruction_and_release(&qinstr_list, &res, res_str);
+		}
+		break;
+
+		default: {
+			res = false;
+		}
+	}
+
+	return res;
+}
+
+// -------------------------------------
+// -------------------------------------
+
+void qSim_qreg::apply_instruction_and_release(std::list<qSim_qinstruction_core*>* qinstr_list, bool* res,
+		std::string* res_str) {
+	// apply to qureg
+	for (std::list<qSim_qinstruction_core*>::iterator it = qinstr_list->begin(); it != qinstr_list->end(); ++it) {
+		(*res) = transform((*it)->m_ftype, (*it)->m_fsize, (*it)->m_frep, (*it)->m_flsq,
+				        (*it)->m_fcrng, (*it)->m_ftrng, (*it)->m_fargs,
+						(*it)->m_futype, (*it)->m_fucrng, (*it)->m_futrng, (*it)->m_fuargs);
+		if (!(*res)) {
+			*res_str = "block stateTransform generic error";
+			break;
+		}
+
+		// release instruction object
+		delete *it;
+	}
+
+//	// release list
+//	for (std::list<qSim_qinstruction_core*>::iterator it = qinstr_list->begin(); it != qinstr_list->end(); ++it) {
+//		delete *it;
+//	}
 }
 
 // -------------------------------------
@@ -486,26 +586,40 @@ unsigned int qSim_qreg::getTotStates() {
 
 // type of measurements
 // 0 - real: using random expected value - status collapsed -> default behavior
-// 1 - real: using expected value - status collapsed
-// 2 - simulated: using random expected value - status unchanged
-// 3 - simulated: using expected value - status unchanged
+// 1 - real: using max probability value - status collapsed
+// 2 - simulated: using random probability value - status unchanged
+// 3 - simulated: using probability value - status unchanged
 
-bool qSim_qreg::measureState(int q_idx, int q_len, bool m_rand, bool m_coll,
-		                     QREG_ST_INDEX_TYPE* m_st, double* m_exp, QREG_ST_INDEX_ARRAY_TYPE* m_vec) {
+bool qSim_qreg::stateMeasure(int q_idx, int q_len, bool m_rand, bool m_coll,
+		                     QREG_ST_INDEX_TYPE* m_st, double* m_pr, QREG_ST_INDEX_ARRAY_TYPE* m_vec) {
+	// perform measure on qureg, i.e. collapsing states, and applying
+	// random expected selection (default) or deterministic max probability
+	//
+	// inputs:
+	// - q_idx: measured sub-qureg start index position, in range [0...(n-1])], with LSB=0 and MSB = n-1.
+	//          value -1 is for complete state measure (i.e. same as q_idx=0 and q_len=n)
+	// - q_len: measured sub-qureg len, in range [1...n-q_idx-1]
+	// - m_rand: use random expectation selection or deterministic max probability selection
+	// - m_coll: perform state collapsing on measured qureg
+	// - st_idx: measured state index in the selected qureg
+	// - m_pr: measured state probability in the selected qureg
+	// - m_vec: collapsed state index vector
+	//
+
 	// sanity checks in input arguments
 	if (q_idx > (int)this->m_totQubits-1) {
-		cerr << "qSim_qreg::measureState - q_idx parameter [" << q_idx << "] outside allowed range - ERROR!!" << endl;
+		cerr << "qSim_qreg::stateMeasure - q_idx parameter [" << q_idx << "] outside allowed range - ERROR!!" << endl;
 		return false;
 	}
 
 	if ((q_len < 0) || (q_len > (int)this->m_totQubits-q_idx)) {
-		cerr << "qSim_qreg::measureState - q_len parameter [" << q_len << "] outside allowed range - ERROR!!" << endl;
+		cerr << "qSim_qreg::stateMeasure - q_len parameter [" << q_len << "] outside allowed range - ERROR!!" << endl;
 		return false;
 	}
 
 	bool d_vals = (this->m_totQubits-q_len <= MEASURE_MAX_INDEX_VEC_SIZE);
 	if (!d_vals)
-		cerr << "qSim_qreg::measureState - measure max index vector size exceeded - no indeces returned!!" << endl;
+		cerr << "qSim_qreg::stateMeasure - measure max index vector size exceeded - no indeces returned!!" << endl;
 
 	// synchronise host with device
 	synchDevStates();
@@ -514,25 +628,26 @@ bool qSim_qreg::measureState(int q_idx, int q_len, bool m_rand, bool m_coll,
 	bool res = false;
 	if (m_coll) {
 		// real measure to be performed - with qureg state collapse
-		res = do_state_measure(q_idx, q_len, m_rand, true, m_st, m_exp, m_vec, d_vals);
+		res = do_state_measure(q_idx, q_len, m_rand, true, m_st, m_pr, m_vec, d_vals);
 	}
 	else {
 		// simulate measure to be performed - no qureg state collapse
-		res = do_state_measure(q_idx, q_len, m_rand, false, m_st, m_exp, m_vec, d_vals);
+		res = do_state_measure(q_idx, q_len, m_rand, false, m_st, m_pr, m_vec, d_vals);
 	}
 	return res;
 }
 
 bool qSim_qreg::do_state_measure(int q_idx, int q_len, bool do_rnd, bool collapse_st,
-		                         QREG_ST_INDEX_TYPE* m_st, double* m_exp, QREG_ST_INDEX_ARRAY_TYPE* m_vec, bool d_vals) {
+		                         QREG_ST_INDEX_TYPE* m_st, double* m_pr,
+								 QREG_ST_INDEX_ARRAY_TYPE* m_vec, bool d_vals) {
 	// perform measure on qureg, i.e. collapsing states, and applying
-	// random expected selection (default) or deterministic max expectation
+	// random expected selection (default) or deterministic max probability
 	//
 	// inputs:
 	// - q_idx: measured sub-qureg start index position, in range [0...(n-1])], with LSB=0 and MSB = n-1.
 	//          value -1 is for complete state measure (i.e. same as q_idx=0 and q_len=n)
 	// - q_len: measured sub-qureg len, in range [1...n-q_idx-1]
-	// - do_rnd: use random expectation selection or deterministic max expectation selection	
+	// - do_rnd: use random expectation selection or deterministic max probability selection
 	// - collapse_st: perform state collapsing on measured qureg	
 	// - st_idx: measured state index in the selected qureg
 	//
@@ -551,12 +666,12 @@ bool qSim_qreg::do_state_measure(int q_idx, int q_len, bool do_rnd, bool collaps
 
     // calculate sub-states expectations
     int q_stn = powf(2, q_len); // total number of sub-states for the measured qubits
-    std::vector<double> exp_vec;
+    std::vector<double> pr_vec;
 
 	// take all expectations for selected qureg
     for (int i=0; i<q_stn; i++) {
-        double exp = get_state_measure_expectation(i, q_idx, q_len);
-        exp_vec.push_back(exp);
+        double pr = get_state_probability(i, q_idx, q_len);
+        pr_vec.push_back(pr);
     }
 
     // handle measure state index calculation
@@ -567,21 +682,21 @@ bool qSim_qreg::do_state_measure(int q_idx, int q_len, bool do_rnd, bool collaps
 
     	double pr_rnd = std::rand()/RAND_MAX;
     	*m_st = 0;
-    	*m_exp = exp_vec[*m_st];
+    	*m_pr = pr_vec[*m_st];
     	for (int i=1; i<q_stn; i++) {
-    		if ((exp_vec[i] >= pr_rnd) && (exp_vec[i] < *m_exp)) {
-    			*m_exp = exp_vec[i];
+    		if ((pr_vec[i] >= pr_rnd) && (pr_vec[i] < *m_pr)) {
+    			*m_pr = pr_vec[i];
     			*m_st = i;
     		}
     	}
     }
     else {
-    	// get highest expectation value directly
+    	// get highest probability value directly
     	*m_st = 0;
-    	*m_exp = exp_vec[*m_st];
+    	*m_pr = pr_vec[*m_st];
     	for (int i=1; i<q_stn; i++) {
-    		if (exp_vec[i] > *m_exp) {
-    			*m_exp = exp_vec[i];
+    		if (pr_vec[i] > *m_pr) {
+    			*m_pr = pr_vec[i];
     			*m_st = i;
     		}
     	}
@@ -595,9 +710,9 @@ bool qSim_qreg::do_state_measure(int q_idx, int q_len, bool do_rnd, bool collaps
     	    if (val_i == *m_st) {
                 // state taken
 #ifndef __QSIM_CPU__
-    	        this->m_states_x[i] = cuCdiv(this->m_states_x[i], QREG_ST_MAKE_VAL(sqrt(*m_exp), 0.0));
+    	        this->m_states_x[i] = cuCdiv(this->m_states_x[i], QREG_ST_MAKE_VAL(sqrt(*m_pr), 0.0));
 #else
-    	        this->m_states_x[i] /= QREG_ST_MAKE_VAL(sqrt(*m_exp), 0.0);
+    	        this->m_states_x[i] /= QREG_ST_MAKE_VAL(sqrt(*m_pr), 0.0);
 #endif
     	        m_vec->push_back(i);
     	    }
@@ -614,47 +729,57 @@ bool qSim_qreg::do_state_measure(int q_idx, int q_len, bool do_rnd, bool collaps
 	return res;
 }
 
-double qSim_qreg::get_state_measure_expectation(int st_idx, int q_idx, int q_len) {
-	// calculate the state expectations (i.e. partial or total probability) at given index
+double qSim_qreg::get_state_probability(int st_idx, int q_idx, int q_len) {
+	// calculate the state probability (i.e. partial or total probability) at given index
 	// for the given measured sub-qureg taking values from state coefficient(s)
 
-	// inputs:
-	// - st_idx: expectation state index (-1 for whole qureg or [0, ..., n-1] for partial state) within given sub-qureg
-	// - q_idx: measured sub-qureg start index
-	// - q_len: measured sub-qureg length
-	//
-	double m_exp;
-	// check qureg specs
-    if ((q_idx == 0) && ((unsigned int)q_len == this->m_totQubits)) {
-    	// complete qureg state - no partial sub-qureg specified
+//	cout << "get_state_probability...st_idx: " << st_idx << " q_idx: " << q_idx << "  q_len: " << q_len << endl;
 
-    	// probability of the state taken - abs() get the magnitude for a complex value
+	// inputs:
+	// - st_idx: probability state index (>=0!)
+	// - q_idx: measured sub-qureg start index (-1 for whole qureg or [0, ..., n-1] for full qureg/partial sub-qureg)
+	// - q_len: measured sub-qureg length (0 for whole qureg or [1, ..., n] for full qureg/partial sub-qureg
+	//
+	double m_pr;
+	// check qureg specs
+    if ((q_idx < 0) || ((q_idx == 0) && ((unsigned int)q_len == this->m_totQubits))) {
+    	// complete qureg state probability
+
+    	// probability of the state taken - abs() get the absolute value of a complex number
 #ifndef __QSIM_CPU__
-        m_exp = powf(cuCabs(this->m_states_x[st_idx]), 2.0f);
+//    	m_pr = cuCmul(this->m_states_x[st_idx], cuConj(this->m_states_x[st_idx])).x;
+    	m_pr = powf(cuCabs(this->m_states_x[st_idx]), 2.0);
 #else
-        m_exp = powf(abs(this->m_states_x[st_idx]), 2.0f);
+    	m_pr = std::norm(this->m_states_x[st_idx]);
 #endif
+
+//    	cout << "get_state_probability...st_idx: " << st_idx << " --> st_ampl: " << this->m_states_x[st_idx].x << "," << this->m_states_x[st_idx].y << endl;
+//    	cout << "st_ampl-conj: " << cuConj(this->m_states_x[st_idx]).x << "," << cuConj(this->m_states_x[st_idx]).y << endl;
+//    	cout << "pr: " << cuCmul(this->m_states_x[st_idx], cuConj(this->m_states_x[st_idx])).x << "," << cuCmul(this->m_states_x[st_idx], cuConj(this->m_states_x[st_idx])).y << endl;
+//    	cout << "pr2: " << powf(cuCabs(this->m_states_x[st_idx]), 2.0) << endl;
+
     }
     else {
-    	// give partial states
+    	// give partial qureg state probability
     	// look at all partial state occurrences
-    	m_exp = 0.0;
+    	m_pr = 0.0;
     	for (int i=0; i<(int)this->m_totStates; i++) {
     		// extract given qubit partial state (index-length) from i-th state
 			int val_i = get_state_bitval(i, q_idx, q_len);
 
 			// check it with given sub-state
 	        if (st_idx == val_i) {
-				// probability of the state taken - abs() get the magnitude for a complex value
+	        	// probability of the state taken - abs() get the absolute value of a complex number
 #ifndef __QSIM_CPU__
-				m_exp += powf(cuCabs(this->m_states_x[i]), 2.0f);
+//	        	m_pr += cuCmul(this->m_states_x[i], cuConj(this->m_states_x[i])).x;
+	        	m_pr += powf(cuCabs(this->m_states_x[i]), 2.0);
 #else
-				m_exp += powf(abs(this->m_states_x[i]), 2.0f);
+	        	m_pr += std::norm(this->m_states_x[i]);
 #endif
 			}
 		}
 	}
-	return m_exp;
+	return m_pr;
 }
 
 int qSim_qreg::get_state_bitval(int val, int b_idx, int b_len) {
@@ -663,6 +788,210 @@ int qSim_qreg::get_state_bitval(int val, int b_idx, int b_len) {
         b += int(powf(2, i))*((val & int((powf(2, (b_idx+i))))) >> (b_idx+i));
     }
     return b;
+}
+
+// -------------------------------------
+// -------------------------------------
+
+bool qSim_qreg::stateExpectation(int st_idx, int q_idx, int q_len, QASM_EX_OBSOP_TYPE ex_opsOp, double* m_exp) {
+	// - st_idx: state index for expectation (-1 for all qureg states and a value for specific state)
+	// - q_idx: qubit start index for partial qureg expectation or -1 for complete qureg (st_idx >= 0 case only)
+	// - q_len: qubit length for partial qureg expectation (q_idx >= 0 case only)
+	// - obs_op: observable operator
+
+	// sanity checks in input arguments
+	if (st_idx > (int)this->m_totStates-1) {
+		cerr << "qSim_qreg::stateExpectation - st_idx parameter [" << st_idx << "] outside allowed range - ERROR!!" << endl;
+		return false;
+	}
+
+	if (q_idx > (int)this->m_totQubits-1) {
+		cerr << "qSim_qreg::stateExpectation - q_idx parameter [" << q_idx << "] outside allowed range - ERROR!!" << endl;
+		return false;
+	}
+
+	if ((q_len < 0) || (q_len > (int)this->m_totQubits-q_idx)) {
+		cerr << "qSim_qreg::stateExpectation - q_len parameter [" << q_len << "] outside allowed range - ERROR!!" << endl;
+		return false;
+	}
+
+	bool d_vals = (this->m_totQubits-q_len <= MEASURE_MAX_INDEX_VEC_SIZE);
+	if (!d_vals)
+		cerr << "qSim_qreg::stateExpectation - measure max index vector size exceeded - no indeces returned!!" << endl;
+
+	if (m_verbose)
+		cout << "stateExpectation -> st_idx: " << st_idx << " q_idx: " << q_idx
+			 << " q_len: " << q_len << " ex_opsOp: " << ex_opsOp << endl;
+
+	// synchronise host with device
+	synchDevStates();
+
+	// take value from state coefficient(s)
+	if (st_idx < 0) {
+		// handle complete qureg states
+		if (m_verbose)
+			cout << "all states - complete ==> st_idx: -1" << endl;
+
+		// get observable expectation values
+		std::vector<double> ex_obsOp_vec;
+		get_state_expectations(-1, 0, ex_opsOp, &ex_obsOp_vec);
+
+		// get state probability values
+		std::vector<double> pr_vec;
+		get_state_probabilities(&pr_vec);
+
+		// sum of the expectations of all qubit states
+		(*m_exp) = 0.0;
+		for (unsigned int i=0; i<m_totStates; i++) {
+			(*m_exp) += ex_obsOp_vec[i]*pr_vec[i];
+			if (m_verbose)
+				cout << "i: " << i << " pr_i: " << pr_vec[i] << " exp_i: " << ex_obsOp_vec[i]*pr_vec[i] << endl;
+		}
+		if (m_verbose)
+			cout << "tot exp: " << (*m_exp) << endl;
+	}
+	else {
+		// specific state given
+		if (m_verbose)
+			cout << "specific state - complete => st_idx:" << st_idx << endl;
+
+		// get observable expectation values
+		std::vector<double> ex_obsOp_vec;
+		get_state_expectations(q_idx, q_len, ex_opsOp, &ex_obsOp_vec);
+
+		// expectation of the given qureg state
+		if (q_idx < 0) {
+			// full qureg
+			double pr = get_state_probability(st_idx, -1, 0);
+			(*m_exp) = ex_obsOp_vec[st_idx]*pr;
+//			cout << "...pr: " << pr << "  st_exp: " << ex_obsOp_vec[st_idx] << "  exp: " << (*m_exp) << endl;
+		}
+		else {
+			// specific sub-qureg - spanning over all states
+			(*m_exp) = 0.0;
+			std::vector<double> pr_vec;
+			get_state_probabilities(&pr_vec);
+			for (unsigned int i=0; i<m_totStates; i++) {
+				int val_i = get_state_bitval(i, q_idx, q_len);
+				if (val_i == st_idx) {
+					// state taken - update expectation
+					(*m_exp) += ex_obsOp_vec[i ]* pr_vec[i];
+				}
+				else {
+					// state not taken - skip it
+					;
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
+void qSim_qreg::get_state_probabilities(std::vector<double>* pr_vec) {
+	// get qureg state probability array
+//	QREG_ST_VAL_ARRAY_TYPE st_vec;
+//	getStates(&st_vec);
+	pr_vec->clear();
+//	for (unsigned int i=0; i<st_vec.size(); i++) {
+//		pr_vec->push_back(std::norm(st_vec[i]));
+//	}
+	for (unsigned int i=0; i<m_totStates; i++) {
+#ifndef __QSIM_CPU__
+		double st_r = m_states_x[i].x;
+		double st_i = m_states_x[i].y;
+#else
+		double st_r = m_states_x[i].real();
+		double st_i = m_states_x[i].imag();
+#endif
+		pr_vec->push_back(std::norm(std::complex<double>(st_r, st_i)));
+	}
+
+	if (m_verbose) {
+		cout << "pr_vec: ";
+		for (unsigned int i=0; i<pr_vec->size(); i++)
+			cout << (*pr_vec)[i] << " ";
+		cout << endl;
+	}
+
+}
+
+void qSim_qreg::kron_product(std::vector<double>* v1, std::vector<double>* v2, std::vector<double>* v3) {
+	// perform kroneker product between two vectors
+	std::vector<double> v_aux;
+	for (unsigned int i=0; i<v1->size(); i++) {
+		for (unsigned int j=0; j<v2->size(); j++) {
+			v_aux.push_back((*v1)[i]*(*v2)[j]);
+		}
+	}
+	(*v3) = v_aux;
+}
+
+void qSim_qreg::get_state_expectations(int q_idx, int q_len, QASM_EX_OBSOP_TYPE ex_obsOp,
+									   std::vector<double>* ex_obsOp_vec) {
+	// get observable expectations for current qureg start index and size
+	// applying ones vectors as LSQ and MSQ via tensor products
+
+	// - q_idx: qubit start index for partial qureg expectation or -1 for complete qureg
+	// - q_len: qubit length for partial qureg expectation (q_idx >= 0 case only)
+	// - obs_op: observable operator
+
+	// retrieve operator vector for given observable
+	std::vector<double> obs_ev_1q_vec = m_obs_ev_map[ex_obsOp];
+	if (m_verbose) {
+		cout << "ex_obsOp: " << ex_obsOp << endl;
+		cout << "ex_obs_ev_1q: ";
+		for (unsigned int i=0; i<obs_ev_1q_vec.size(); i++)
+			cout << obs_ev_1q_vec[i] << " ";
+		cout << endl;
+	}
+
+	if (q_idx < 0) {
+    	// whole qureg - apply 1-qubit obs_op replicas for all qubits
+		(*ex_obsOp_vec) = obs_ev_1q_vec;
+		for (unsigned int i=0; i<m_totQubits-1; i++) {
+			kron_product(ex_obsOp_vec, &obs_ev_1q_vec, ex_obsOp_vec);
+		}
+	}
+	else {
+		// specified sub-qureg - apply 1-qubit obs_op used for given qubit range only
+		// and 1-qubit identity_op LSQ and MSQ fillers for the rest
+		std::vector<double> ones_vec = {1.0, 1.0};
+
+		// handle LSQ identities + first 1-qubit obs_op replica
+		if (q_idx > 0) {
+			(*ex_obsOp_vec) = ones_vec;
+			for (int i=0; i<q_idx-1; i++) {
+				kron_product(ex_obsOp_vec, &ones_vec, ex_obsOp_vec);
+			}
+			kron_product(ex_obsOp_vec, &obs_ev_1q_vec, ex_obsOp_vec);
+		}
+		else {
+			(*ex_obsOp_vec) = obs_ev_1q_vec;
+		}
+
+		// add other 1-qubit obs_op replicas - if needed
+		for (int i=0; i<q_len-1; i++) {
+			kron_product(ex_obsOp_vec, &obs_ev_1q_vec, ex_obsOp_vec);
+		}
+
+		// add MSQ replicas - if needed
+		for (unsigned int i=q_idx+q_len; i<m_totQubits; i++) {
+			kron_product(ex_obsOp_vec, &ones_vec, ex_obsOp_vec);
+		}
+	}
+
+	// return overall observable expval vector - spanning the full qureg!
+	if (m_verbose)
+    	cout << "q_idx: " << q_idx << " --> obs_ev_vec: " << ex_obsOp_vec->size() << endl;
+
+	if (m_verbose) {
+		cout << "ex_obsOp_vec: ";
+		for (unsigned int i=0; i<ex_obsOp_vec->size(); i++)
+			cout << (*ex_obsOp_vec)[i] << " ";
+		cout << endl;
+	}
+
 }
 
 // -------------------------------------

@@ -30,6 +30,7 @@
  *  --------------------------------------------------------------------------
  *  1.0   May-2022   Module creation.
  *  1.1   Nov-2022   Updated to align to changes in QASM module.
+ *  1.2   Feb-2023   Handled socket polling timeout passage as init argument.
  *
  *  --------------------------------------------------------------------------
  */
@@ -75,9 +76,10 @@ qSim_qio::~qSim_qio() {
 
 ///////////////////////////////////////////////////////////////////
 
-int qSim_qio::init(std::string ipAddr, int port) {
+int qSim_qio::init(std::string ipAddr, int port, int sock_timeout) {
 	// Initialize socket server
 	m_qsockSrv->set_dataInOut_callback(this);
+	m_qsockSrv->set_clientPollingTimeout(sock_timeout);
 	int ret = m_qsockSrv->init(ipAddr, port);
 	if (ret == QBUS_SOCK_ERROR)
 		cerr << "qSim_qio::init - failed to initialize socket server - ipAddr: " << ipAddr

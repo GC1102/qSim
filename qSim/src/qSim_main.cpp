@@ -30,6 +30,8 @@
  *  1.1   Nov-2022   Updated release version.
  *                   Handled command line arguments for help, verbose flag and
  *                   TCP/IP port.
+ *  1.2   Feb-2023   Handled message reading and socket polling timeouts passage
+ *                   as init arguments.
  *
  *  --------------------------------------------------------------------------
  */
@@ -50,7 +52,7 @@ using namespace std;
 #define QSIM_ARCH "GPU"
 #endif
 
-#define QSIM_VERSION "v2.0"
+#define QSIM_VERSION "v2.1"
 
 
 // print usage information
@@ -63,6 +65,10 @@ void show_usage(std::string cmd) {
 	cout << "\t to enable diagnostic messages" << endl;
 	cout << " -port=<number>, -p=<number>" << endl;
 	cout << "\t to set a specific TCP/IP port" << endl;
+	cout << " -msg_tm=<number>" << endl;
+	cout << "\t to set a specific message loop timeout (usec)" << endl;
+	cout << " -sock_tm=<number>" << endl;
+	cout << "\t to set a specific socket loop timeout (usec)" << endl;
 	cout << endl;
 }
 
@@ -77,6 +83,8 @@ int main(int argc, char *argv[]) {
 	// setup parameters from command line arguments - if any
 	bool verbose = false;
 	int port = QSIM_DEFAULT_PORT;
+	int msg_tm = QSIM_MSG_LOOP_TIMEOUT_MSEC;
+	int sock_tm = QSIM_SOCKET_LOOP_TIMEOUT_MSEC;
 	for (int i=1; i<argc; i++) {
 		std::string arg = std::string(argv[i]);
 		if ((arg.compare("-v") == 0) || (arg.compare("-verbose") == 0)) {
@@ -93,6 +101,34 @@ int main(int argc, char *argv[]) {
 			else {
 				// wrong syntax
 				cerr << "ERROR!! wrong port number syntax [" << arg << "]" << endl << endl;
+				show_usage(std::string(argv[0]));
+				return 0;
+			}
+		}
+		else if (arg.find("-msg_tm=") != std::string::npos) {
+			// message timeout tag found - check for correct syntax (-msg_tm=<value>) and read timeout value
+			int sep_index = arg.find("=");
+			std::string tm_str = arg.substr(sep_index+1, arg.length()-sep_index-1);
+			if (tm_str.length() > 0) {
+				msg_tm = std::stoi(tm_str);
+			}
+			else {
+				// wrong syntax
+				cerr << "ERROR!! wrong message timeout syntax [" << arg << "]" << endl << endl;
+				show_usage(std::string(argv[0]));
+				return 0;
+			}
+		}
+		else if (arg.find("-sock_tm=") != std::string::npos) {
+			// socket timeout tag found - check for correct syntax (-sock_tm=<value>) and read timeout value
+			int sep_index = arg.find("=");
+			std::string tm_str = arg.substr(sep_index+1, arg.length()-sep_index-1);
+			if (tm_str.length() > 0) {
+				sock_tm = std::stoi(tm_str);
+			}
+			else {
+				// wrong syntax
+				cerr << "ERROR!! wrong message timeout syntax [" << arg << "]" << endl << endl;
 				show_usage(std::string(argv[0]));
 				return 0;
 			}
@@ -114,12 +150,15 @@ int main(int argc, char *argv[]) {
 	}
 
 	cout << "qSim parameters:" << endl;
-	cout << "-> verbose: " << verbose << endl;
+	cout << "-> verbose:        " << verbose << endl;
+	cout << "-> port:           " << port << endl;
+	cout << "-> msg_tm (usec):  " << msg_tm << endl;
+	cout << "-> sock_tm (usec): " << sock_tm << endl;
 	cout << endl;
 
 	// initialise qsim component
 	qSim qsim(verbose);
-	int ret = qsim.init(QSIM_DEFAULT_IPADDR, port);
+	int ret = qsim.init(QSIM_DEFAULT_IPADDR, port, msg_tm, sock_tm);
 	if (ret == QSIM_ERROR) {
 		cerr << "ERROR!! qsim initialisation failed" << endl;
 		return 0;
@@ -133,7 +172,8 @@ int main(int argc, char *argv[]) {
 		// ... nothing else here - all done in the thread loop
 
 		// sleep
-		this_thread::sleep_for(chrono::milliseconds(10000));
+//		this_thread::sleep_for(chrono::milliseconds(1000));
+		std::this_thread::yield();
 	}
 
 	cout << "=> qSim run completed" << endl << endl;

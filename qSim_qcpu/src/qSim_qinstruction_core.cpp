@@ -32,6 +32,8 @@
  *  Ver   Date       Change
  *  --------------------------------------------------------------------------
  *  1.0   Nov-2022   Module creation.
+ *  1.1   Feb-2023   Supported qureg state expectation calculation and fixed
+ *                   terminology for state probability measure.
  *
  *  --------------------------------------------------------------------------
  */
@@ -79,6 +81,7 @@ qSim_qinstruction_core::qSim_qinstruction_core(qSim_qasm_message* msg) :
 	m_q_len = 0;
 	m_rand = false;
 	m_coll = false;
+	m_ex_obsOp = QASM_EX_OBSOP_TYPE_COMP;
 	m_ftype = QASM_F_TYPE_NULL;
 	m_fsize = 0;
 	m_frep = 0;
@@ -145,6 +148,41 @@ qSim_qinstruction_core::qSim_qinstruction_core(qSim_qasm_message* msg) :
 			if (msg->check_param_valueByTag(QASM_MSG_PARAM_TAG_QREG_MCOLL)) {
 				// measurement collapse state flag passed as argument (optional)
 				SAFE_MSG_GET_PARAM_AS_BOOL(QASM_MSG_PARAM_TAG_QREG_MCOLL, m_coll)
+			}
+		}
+		break;
+
+		// --------------------
+
+		case QASM_MSG_ID_QREG_ST_EXPECT: {
+			// qureg expectation message handling
+			SAFE_MSG_GET_PARAM_AS_INT(QASM_MSG_PARAM_TAG_QREG_H, m_qr_h)
+
+			// expectation state index
+			m_st_idx = -1;
+			if (msg->check_param_valueByTag(QASM_MSG_PARAM_TAG_QREG_EXSTIDX)) {
+				// expectation qureg starting qubit passed as argument (optional)
+				SAFE_MSG_GET_PARAM_AS_INT(QASM_MSG_PARAM_TAG_QREG_EXSTIDX, m_st_idx)
+			}
+
+			m_q_idx = 0;
+			if (msg->check_param_valueByTag(QASM_MSG_PARAM_TAG_QREG_EXQIDX)) {
+				// expectation qureg starting qubit passed as argument (optional)
+				SAFE_MSG_GET_PARAM_AS_INT(QASM_MSG_PARAM_TAG_QREG_EXQIDX, m_q_idx)
+			}
+
+			m_q_len = -1; // whole qureg
+			if (msg->check_param_valueByTag(QASM_MSG_PARAM_TAG_QREG_EXQLEN)) {
+				// expectation qureg length passed as argument (optional)
+				SAFE_MSG_GET_PARAM_AS_INT(QASM_MSG_PARAM_TAG_QREG_EXQLEN, m_q_len)
+			}
+
+			m_ex_obsOp = QASM_EX_OBSOP_TYPE_COMP;
+			int ex_obsOp;
+			if (msg->check_param_valueByTag(QASM_MSG_PARAM_TAG_QREG_EXOBSOP)) {
+				// expectation observable operator passed as argument (optional)
+				SAFE_MSG_GET_PARAM_AS_INT(QASM_MSG_PARAM_TAG_QREG_EXOBSOP, ex_obsOp)
+				m_ex_obsOp = (QASM_EX_OBSOP_TYPE)ex_obsOp;
 			}
 		}
 		break;
@@ -225,7 +263,7 @@ qSim_qinstruction_core::~qSim_qinstruction_core() {
 // -------------------------------------
 
 // other constructors - diagnostics
-qSim_qinstruction_core::qSim_qinstruction_core(QASM_MSG_ID_TYPE type, int qr_h, unsigned st_idx) :
+qSim_qinstruction_core::qSim_qinstruction_core(QASM_MSG_ID_TYPE type, int qr_h, int st_idx) :
 		qSim_qinstruction_base (type) {
 	// qureg allocate, release, reset, set (pure state), peek
 	m_type = type;
@@ -257,6 +295,7 @@ qSim_qinstruction_core::qSim_qinstruction_core(QASM_MSG_ID_TYPE type, int qr_h, 
 	m_q_len = 0;
 	m_rand = false;
 	m_coll = false;
+	m_ex_obsOp = QASM_EX_OBSOP_TYPE_COMP;
 	m_ftype = QASM_F_TYPE_NULL;
 	m_fsize = 0;
 	m_frep = 0;
@@ -291,6 +330,7 @@ qSim_qinstruction_core::qSim_qinstruction_core(QASM_MSG_ID_TYPE type, int qr_h, 
 	m_st_idx = 0;
 	m_rand = false;
 	m_coll = false;
+	m_ex_obsOp = QASM_EX_OBSOP_TYPE_COMP;
 	m_ftype = QASM_F_TYPE_NULL;
 	m_fsize = 0;
 	m_frep = 0;
@@ -315,7 +355,7 @@ qSim_qinstruction_core::qSim_qinstruction_core(QASM_MSG_ID_TYPE type, int qr_h,
 
 		default: {
 			// error case
-			cerr << "qSim_qinstruction constructor for qreg measurement - unhandled qasm message type "
+			cerr << "qSim_qinstruction constructor for qreg state measurement - unhandled qasm message type "
 				 << m_type << "!!" << endl;
 			m_qr_h = 0;
 			m_q_idx = 0;
@@ -327,6 +367,45 @@ qSim_qinstruction_core::qSim_qinstruction_core(QASM_MSG_ID_TYPE type, int qr_h,
 
 	m_qn = 0;
 	m_st_idx = 0;
+	m_st_array = QREG_ST_VAL_ARRAY_TYPE();
+	m_ex_obsOp = QASM_EX_OBSOP_TYPE_COMP;
+	m_ftype = QASM_F_TYPE_NULL;
+	m_fsize = 0;
+	m_frep = 0;
+	m_flsq = 0;
+	m_futype = QASM_F_TYPE_NULL;
+	m_valid = true;
+}
+
+qSim_qinstruction_core::qSim_qinstruction_core(QASM_MSG_ID_TYPE type, int qr_h, int st_idx,
+						 int q_idx, int q_len, QASM_EX_OBSOP_TYPE ex_obsOp) : qSim_qinstruction_base (type) {
+	// qureg expectation
+	m_type = type;
+	switch (m_type) {
+		case QASM_MSG_ID_QREG_ST_EXPECT: {
+			m_qr_h = qr_h;
+			m_st_idx = st_idx;
+			m_q_idx = q_idx;
+			m_q_len = q_len;
+			m_ex_obsOp = ex_obsOp;
+		}
+		break;
+
+		default: {
+			// error case
+			cerr << "qSim_qinstruction constructor for qreg state expectation - unhandled qasm message type "
+				 << m_type << "!!" << endl;
+			m_qr_h = 0;
+			m_st_idx = 0;
+			m_q_idx = 0;
+			m_q_len = 0;
+			m_ex_obsOp = QASM_EX_OBSOP_TYPE_COMP;
+		}
+	}
+
+	m_qn = 0;
+	m_rand = false;
+	m_coll = false;
 	m_st_array = QREG_ST_VAL_ARRAY_TYPE();
 	m_ftype = QASM_F_TYPE_NULL;
 	m_fsize = 0;
@@ -350,6 +429,7 @@ qSim_qinstruction_core::qSim_qinstruction_core(QASM_MSG_ID_TYPE type, int qr_h, 
 	m_q_len = 0;
 	m_rand = false;
 	m_coll = false;
+	m_ex_obsOp = QASM_EX_OBSOP_TYPE_COMP;
 	m_valid = true;
 	m_type = type;
 	switch (m_type) {
@@ -614,6 +694,15 @@ void qSim_qinstruction_core::dump() {
 			cout << "m_q_len: " << m_q_len << endl;
 			cout << "m_rand: " << m_rand << endl;
 			cout << "m_coll: " << m_coll << endl;
+		}
+		break;
+
+		case QASM_MSG_ID_QREG_ST_EXPECT: {
+			cout << "m_qr_h: " << m_qr_h << endl;
+			cout << "m_st_idx: " << m_st_idx << endl;
+			cout << "m_q_idx: " << m_q_idx << endl;
+			cout << "m_q_len: " << m_q_len << endl;
+			cout << "m_ex_obsOp: " << m_ex_obsOp << endl;
 		}
 		break;
 

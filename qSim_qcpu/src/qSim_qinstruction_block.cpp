@@ -49,13 +49,14 @@ using namespace std;
 
 
 /////////////////////////////////////////////////////////////////////////
-// qreg instruction class
+// q-instruction block class
 
 
 // ------------------------
 
 #define SAFE_TRASFORMATION_PARAMS_CHECK() {\
-	if (QASM_F_TYPE_IS_FUNC_BLOCK(m_ftype)) \
+	if (QASM_F_TYPE_IS_FUNC_BLOCK(m_ftype) || \
+		QASM_F_TYPE_IS_FUNC_BLOCK_QML(m_ftype)) \
 		m_valid = this->check_params();\
 	else {\
 		cerr << "qSim_qinstruction_block - unhandled ftype value [" << m_ftype << "]!!";\
@@ -68,6 +69,21 @@ using namespace std;
 // ------------------------
 
 // constructor & destructor
+qSim_qinstruction_block::qSim_qinstruction_block() :
+		qSim_qinstruction_base(0) {
+	// empty constructor
+	m_type = 0;
+	m_qr_h = 0;
+	m_ftype = QASM_F_TYPE_NULL;
+	m_fsize = 0;
+	m_frep = 0;
+	m_flsq = 0;
+	m_fcrng = QREG_F_INDEX_RANGE_TYPE();
+	m_ftrng = QREG_F_INDEX_RANGE_TYPE();
+	m_fargs = QREG_F_ARGS_TYPE();
+	m_valid = false;
+}
+
 qSim_qinstruction_block::qSim_qinstruction_block(qSim_qasm_message* msg) :
 		qSim_qinstruction_base(msg->get_id()) {
 	// initialise from given message
@@ -169,11 +185,7 @@ bool qSim_qinstruction_block::check_params() {
 	bool res = true;
 
 	// general checks
-	// check function type within block range
-	SAFE_CHECK_PARAM_VALUE(((m_ftype >= QASM_FB_TYPE_Q1_SWAP) && (m_ftype <= QASM_FB_TYPE_QN_CSWAP)), res,
-						   "qSim_qinstruction_block::check_params - illegal block type value", m_ftype)
-
-	// check LSQ index > 0
+	// check LSQ index >= 0
 	SAFE_CHECK_PARAM_VALUE((m_flsq >= 0), res,
 						   "qSim_qinstruction_block::check_params - illegal function LSQ value", m_flsq)
 

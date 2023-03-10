@@ -28,6 +28,8 @@
  *  Ver   Date       Change
  *  --------------------------------------------------------------------------
  *  1.0   Dec-2022   Module creation.
+ *  1.1   Feb-2023   Handled QML function blocks (feature map and q-net).
+ *                   Added double to string precise conversion helper method.
  *
  *  --------------------------------------------------------------------------
  */
@@ -116,6 +118,7 @@ public:
 	// instruction class (core or block)
 	static bool is_core(qSim_qasm_message* msg);
 	static bool is_block(qSim_qasm_message* msg);
+	static bool is_block_qml(qSim_qasm_message* msg);
 
 	// state value::string conversion helpers
 	static std::string state_value_to_string(QREG_ST_VAL_ARRAY_TYPE q_st);
@@ -132,6 +135,9 @@ public:
 	// measure index value::string conversion helpers
 	static std::string measure_index_value_to_string(QREG_ST_INDEX_ARRAY_TYPE m_vec);
 	static bool measure_index_string_to_value(std::string qr_st_str, QREG_ST_INDEX_ARRAY_TYPE*);
+
+	// double value to string with precision conversion helpers
+	static std::string double_value_to_string(double d_val);
 
 	// diagnostics
 	virtual void dump() = 0;
@@ -172,8 +178,8 @@ protected:
 		return; \
 }
 
-#define SAFE_MSG_GET_PARAM_AS_STATE_INDEX(par_name, uint_val) {\
-	m_valid = qSim_qinstruction_base::get_msg_param_value_as_uint(msg, par_name, &uint_val);\
+#define SAFE_MSG_GET_PARAM_AS_STATE_INDEX(par_name, int_val) {\
+	m_valid = qSim_qinstruction_base::get_msg_param_value_as_int(msg, par_name, &int_val);\
 	if (!m_valid)\
 		return; \
 }
@@ -211,6 +217,8 @@ protected:
 			cerr << "qSim_qinstruction_base - " << err_msg << " [" << err_val << "]!!" << endl;\
 	} \
 }
+
+// ---------------------------------
 
 
 #endif /* QSIM_QINSTRUCTION_BASE_H_ */

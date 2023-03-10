@@ -219,18 +219,20 @@ bool qSim_qasm_message::check_syntax() {
 				log_missing_param_tag(QASM_MSG_PARAM_TAG_F_TYPE);
 				res = false;
 			}
-			else if (m_params.count(QASM_MSG_PARAM_TAG_F_SIZE) == 0) {
-				log_missing_param_tag(QASM_MSG_PARAM_TAG_F_SIZE);
-				res = false;
-			}
-			else if (m_params.count(QASM_MSG_PARAM_TAG_F_REP) == 0) {
-				log_missing_param_tag(QASM_MSG_PARAM_TAG_F_REP);
-				res = false;
-			}
-			else if (m_params.count(QASM_MSG_PARAM_TAG_F_LSQ) == 0) {
-				log_missing_param_tag(QASM_MSG_PARAM_TAG_F_LSQ);
-				res = false;
-			}
+
+// -> those are checked in the instruction classes!
+//			else if (m_params.count(QASM_MSG_PARAM_TAG_F_SIZE) == 0) {
+//				log_missing_param_tag(QASM_MSG_PARAM_TAG_F_SIZE);
+//				res = false;
+//			}
+//			else if (m_params.count(QASM_MSG_PARAM_TAG_F_REP) == 0) {
+//				log_missing_param_tag(QASM_MSG_PARAM_TAG_F_REP);
+//				res = false;
+//			}
+//			else if (m_params.count(QASM_MSG_PARAM_TAG_F_LSQ) == 0) {
+//				log_missing_param_tag(QASM_MSG_PARAM_TAG_F_LSQ);
+//				res = false;
+//			}
 		}
 		break;
 

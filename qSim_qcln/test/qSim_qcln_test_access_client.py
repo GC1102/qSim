@@ -49,7 +49,8 @@ def test_qcln_access_client_simple():
     print()
     
     # allocate a test qureg and peek states
-    qr_h = qcln.qreg_allocate(3)
+    n = 3
+    qr_h = qcln.qreg_allocate(n)
     qr_st = qcln.qreg_state_getValues(qr_h)
     print('=> qr-states:', qr_st)
     print()
@@ -61,6 +62,20 @@ def test_qcln_access_client_simple():
     f_lsq = 1
     res = qcln.qreg_state_transform(qr_h, f_type, f_size, f_rep, f_lsq)
     print('=> qr-transformation res:', res)
+    print()
+
+    # peek states
+    qr_st = qcln.qreg_state_getValues(qr_h)
+    print('=> qr-states:', qr_st)
+    print()
+
+    # state expectation - all states, Pauli-Z basis
+    st_idx = -1
+    q_idx = 0 # not used for all states expectation
+    q_len = n # not used for all states expectation
+    q_obs_op = qasm.QASM_EX_OBSOP_TYPE_PAULIZ
+    qr_exp = qcln.qreg_expectation(qr_h, st_idx, q_idx, q_len, q_obs_op)
+    print('=> qr-expectation:', qr_exp)
     print()
 
     # peek states

@@ -1,5 +1,5 @@
 /*
- * qSim_qbus.cpp
+ * qSim_qsocket.cpp
  *
  * --------------------------------------------------------------------------
  * Copyright (C) 2018 Gianni Casonato
@@ -32,6 +32,8 @@
  *                   Included loop thread as class method.
  *  1.2   Nov-2022   Disabled diagnostic client activity check (displayed in socket
  *                   loop).
+ *  1.3   Mar-2023   Improved server and client socket transfer performance setting
+ *                   TCP NODELAY flag (5x improvement).
  *
  *  --------------------------------------------------------------------------
  */
@@ -39,7 +41,6 @@
 
 #include <iostream>
 #include <cmath>
-//#include <bitset>
 using namespace std;
 
 #ifndef _WIN32
@@ -231,6 +232,10 @@ int qSim_qsocket_server::init(string server_ipAddr, int server_port) {
         cerr << "qSim_qsocket_server setsockopt error for SO_REUSEADDR - errno: " << errno << endl;
         return QBUS_SOCK_ERROR;
     }
+    if (setsockopt(m_sockfd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(int)) == -1) {
+        cerr << "qSim_qsocket_server setsockopt error for TCP_NODELAY - errno: " << errno << endl;
+        return QBUS_SOCK_ERROR;
+    }
 
     if (bind(m_sockfd, (struct sockaddr*)&servAddr, sizeof(servAddr)) == -1) {
         cerr << "qSim_qsocket_server bind error - errno: " << errno << endl;
@@ -238,6 +243,12 @@ int qSim_qsocket_server::init(string server_ipAddr, int server_port) {
     }
 #else
     // windows case
+    bool yes = true;
+    if (setsockopt(m_sockfd, IPPROTO_TCP, TCP_NODELAY, (char*)&yes, sizeof(DWORD)) == SOCKET_ERROR) {
+        cerr << "qSim_qsocket_server setsockopt error for TCP_NODELAY - errno: " << errno << endl;
+        return QBUS_SOCK_ERROR;
+    }
+
     bind(m_sockfd, (SOCKADDR*)&servAddr, sizeof(servAddr));
 #endif
 
@@ -371,12 +382,25 @@ int qSim_qsocket_client::init(string server_ipAddr, int server_port) {
 
 #ifndef _WIN32
     // linux case
+    int yes = 1;
+    if (setsockopt(m_sockfd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(int)) == -1) {
+        cerr << "qSim_qsocket_server setsockopt error for TCP_NODELAY - errno: " << errno << endl;
+        return QBUS_SOCK_ERROR;
+    }
+
     if (connect(m_sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
         cerr << "qSim_qsocket_client connect failed - errno:" << errno << endl;
         return QBUS_SOCK_ERROR;
     }
+
 #else
     // windows case
+    bool yes = true;
+    if (setsockopt(m_sockfd, IPPROTO_TCP, TCP_NODELAY, (char*)&yes, sizeof(DWORD)) == SOCKET_ERROR) {
+        cerr << "qSim_qsocket_server setsockopt error for TCP_NODELAY - errno: " << errno << endl;
+        return QBUS_SOCK_ERROR;
+    }
+
     connect(m_sockfd, (SOCKADDR*)&server_addr, sizeof(server_addr));
 #endif
 
