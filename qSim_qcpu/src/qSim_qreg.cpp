@@ -315,7 +315,7 @@ bool qSim_qreg::applyBlockInstruction(qSim_qinstruction_block* qr_instr, std::st
 				cout << "applyBlockInstruction...qinstr_list.size: " << qinstr_list.size() << endl;
 
 			// apply to qureg
-			apply_instruction_and_release(&qinstr_list, &res, res_str);
+			apply_instruction_and_release(&qinstr_list, qr_instr->m_fargs, &res, res_str);
 		}
 		break;
 
@@ -330,8 +330,16 @@ bool qSim_qreg::applyBlockInstruction(qSim_qinstruction_block* qr_instr, std::st
 // -------------------------------------
 // -------------------------------------
 
+#define DUMP_FARGS(qinst) {\
+	cout << "m_fargs.size: " << qinst->m_fargs.size()\
+		 << " str: " << qinst->fargs_to_string(qinst->m_fargs) << endl;\
+}
+
 bool qSim_qreg::applyBlockInstructionQml(qSim_qinstruction_block_qml* qr_instr, std::string* res_str) {
 	// handle QML block instruction execution based on instruction type and return response
+
+//	cout << "qml qinstr..." << endl;
+//	DUMP_FARGS(qr_instr);
 
 	bool res;
 	switch (qr_instr->m_type) {
@@ -340,15 +348,16 @@ bool qSim_qreg::applyBlockInstructionQml(qSim_qinstruction_block_qml* qr_instr, 
 			QASM_F_TYPE ftype = qr_instr->m_ftype;
 
 			// translate into core instructions
-			std::list<qSim_qinstruction_core*> qinstr_list;
+			std::list<qSim_qinstruction_core*>* qinstr_list;
+			QREG_F_ARGS_TYPE qinstr_list_fargs;
 			switch (ftype) {
 				case QASM_FBQML_TYPE_FMAP: {
-					qr_instr->unwrap_block_fmap(&qinstr_list, m_verbose);
+					qr_instr->unwrap_block_fmap(&qinstr_list, &qinstr_list_fargs, m_verbose);
 				}
 				break;
 
 				case QASM_FBQML_TYPE_QNET: {
-					qr_instr->unwrap_block_qnet(m_totQubits, &qinstr_list, m_verbose);
+					qr_instr->unwrap_block_qnet(m_totQubits, &qinstr_list, &qinstr_list_fargs, m_verbose);
 				}
 				break;
 
@@ -360,10 +369,10 @@ bool qSim_qreg::applyBlockInstructionQml(qSim_qinstruction_block_qml* qr_instr, 
 				}
 			}
 			if (m_verbose)
-				cout << "applyBlockInstruction...qinstr_list.size: " << qinstr_list.size() << endl;
+				cout << "applyBlockInstruction...qinstr_list.size: " << qinstr_list->size() << endl;
 
-			// apply to qureg
-			apply_instruction_and_release(&qinstr_list, &res, res_str);
+			// apply to qureg - no release (caching applied)!
+			apply_instruction_and_release(qinstr_list, qinstr_list_fargs, &res, res_str, false);
 		}
 		break;
 
@@ -378,20 +387,29 @@ bool qSim_qreg::applyBlockInstructionQml(qSim_qinstruction_block_qml* qr_instr, 
 // -------------------------------------
 // -------------------------------------
 
-void qSim_qreg::apply_instruction_and_release(std::list<qSim_qinstruction_core*>* qinstr_list, bool* res,
-		std::string* res_str) {
-	// apply to qureg
+void qSim_qreg::apply_instruction_and_release(std::list<qSim_qinstruction_core*>* qinstr_list,
+		QREG_F_ARGS_TYPE fargs, bool* res, std::string* res_str, bool do_release) {
+	// apply to qureg using given fargs - overriding those used for q-instruction creation
+	int i = 0;
 	for (std::list<qSim_qinstruction_core*>::iterator it = qinstr_list->begin(); it != qinstr_list->end(); ++it) {
+//		cout << "apply...f_type: " << (*it)->m_ftype << endl;
+//		DUMP_FARGS((*it));
+    	QREG_F_ARGS_TYPE fargs_i;
+    	if ((*it)->m_fargs.size() > 0) {
+    		fargs_i.push_back(fargs[i]);
+    		i++;
+    	}
 		(*res) = transform((*it)->m_ftype, (*it)->m_fsize, (*it)->m_frep, (*it)->m_flsq,
-				        (*it)->m_fcrng, (*it)->m_ftrng, (*it)->m_fargs,
+				        (*it)->m_fcrng, (*it)->m_ftrng, fargs_i,
 						(*it)->m_futype, (*it)->m_fucrng, (*it)->m_futrng, (*it)->m_fuargs);
 		if (!(*res)) {
 			*res_str = "block stateTransform generic error";
 			break;
 		}
 
-		// release instruction object
-		delete *it;
+		// release instruction object - if enabled
+		if (do_release)
+			delete *it;
 	}
 
 //	// release list

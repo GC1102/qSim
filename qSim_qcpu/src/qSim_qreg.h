@@ -142,8 +142,8 @@ class qSim_qreg {
 
 		void kron_product(std::vector<double>* v1, std::vector<double>* v2, std::vector<double>* v3);
 
-		void apply_instruction_and_release(std::list<qSim_qinstruction_core*>* qinstr_list,
-				                           bool* res, std::string* res_str);
+		void apply_instruction_and_release(std::list<qSim_qinstruction_core*>* qinstr_list, QREG_F_ARGS_TYPE fargs,
+				                           bool* res, std::string* res_str, bool do_release=true);
 
 		map<QASM_EX_OBSOP_TYPE, std::vector<double>> m_obs_ev_map;
 

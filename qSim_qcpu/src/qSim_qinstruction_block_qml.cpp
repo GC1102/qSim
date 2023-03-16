@@ -39,9 +39,10 @@
 
 #include <iostream>
 #include <complex>
+#include <cmath>
+#include <string.h>
 using namespace std;
 
-#include <string.h>
 
 #include "qSim_qinstruction_block_qml.h"
 #include "qSim_qinstruction_core.h"
@@ -149,25 +150,66 @@ bool qSim_qinstruction_block_qml::check_params() {
 // -------------------------------------
 // -------------------------------------
 
+// handle caching q-instruction lists caching for performance
+int m_last_fmap_n = 0;
+int m_last_fmap_frep = 0;
+QASM_QML_ENTANG_TYPE m_last_fmap_fbent;
+int m_last_fmap_fbsubtype;
+std::list<qSim_qinstruction_core*> m_last_fmap_qinstr_list;
+
+int m_last_qnet_n = 0;
+int m_last_qnet_frep = 0;
+QASM_QML_ENTANG_TYPE m_last_qnet_fbent;
+int m_last_qnet_fbsubtype;
+std::list<qSim_qinstruction_core*> m_last_qnet_qinstr_list;
+
+bool is_qml_ftype_in_cache(QASM_F_TYPE f_type, int f_rep, QASM_QML_ENTANG_TYPE fb_ent, int fb_subtype, QREG_F_ARGS_TYPE f_args) {
+	if (f_type == QASM_FBQML_TYPE_FMAP) {
+		int n = f_args.size();
+		return ((n==m_last_fmap_n) && (f_rep==m_last_fmap_frep) && (fb_ent==m_last_fmap_fbent) && (fb_subtype==m_last_fmap_fbsubtype));
+	}
+	else if (f_type == QASM_FBQML_TYPE_QNET) {
+		int n = f_args.size()/(f_rep + 1);
+		return ((n==m_last_qnet_n) && (f_rep==m_last_qnet_frep) && (fb_ent==m_last_qnet_fbent) && (fb_subtype==m_last_qnet_fbsubtype));
+	}
+	else
+		return false;
+}
+
 // function block decomposition into core instructions - feature map
 
-void qSim_qinstruction_block_qml::unwrap_block_fmap(std::list<qSim_qinstruction_core*>* qinstr_list,
-		                                            bool verbose) {
+void qSim_qinstruction_block_qml::unwrap_block_fmap(std::list<qSim_qinstruction_core*>** qinstr_list,
+											        QREG_F_ARGS_TYPE* qinstr_list_fargs, bool verbose) {
 	// feature map QML function block decomposition in core transformations
 	// based on given subtype (Pauli-Z or PAuli-ZZ)
 	if (verbose)
 		cout << "QML block - unwrap_fmap..." << endl;
 
+	// check if in cache
+	if (is_qml_ftype_in_cache(m_ftype, m_frep, m_fbent, m_fbsubtype, m_fargs)) {
+		// take from cache
+		if (verbose)
+			cout << "QML block - q-instruction list taken from cache..." << endl;
+		*qinstr_list = &m_last_fmap_qinstr_list;
+
+		// assemble function arguments
+		feature_map_prepare_fargs(qinstr_list_fargs);
+		return;
+	}
+
 	// perform unwrap according to sub-ftype value
-	qinstr_list->clear();
+	for (std::list<qSim_qinstruction_core*>::iterator it = m_last_fmap_qinstr_list.begin(); it != m_last_fmap_qinstr_list.end(); ++it) {
+		delete (*it);
+	}
+	m_last_fmap_qinstr_list.clear();
 	switch (m_fbsubtype) {
 		case QASM_QML_FMAP_TYPE_PAULI_Z: {
-			feature_map_pe_pauliZ(&m_fargs, m_frep, qinstr_list, verbose);
+			feature_map_pe_pauliZ(&m_fargs, m_frep, &m_last_fmap_qinstr_list, verbose);
 		}
 		break;
 
 		case QASM_QML_FMAP_TYPE_PAULI_ZZ: {
-			feature_map_pe_pauliZZ(&m_fargs, m_frep, m_fbent, qinstr_list, verbose);
+			feature_map_pe_pauliZZ(&m_fargs, m_frep, m_fbent, &m_last_fmap_qinstr_list, verbose);
 		}
 		break;
 
@@ -177,6 +219,21 @@ void qSim_qinstruction_block_qml::unwrap_block_fmap(std::list<qSim_qinstruction_
 		}
 		break;
 	}
+	*qinstr_list = &m_last_fmap_qinstr_list;
+
+	// set other cache fields
+	m_last_fmap_frep = m_frep;
+	m_last_fmap_fbent = m_fbent;
+	m_last_fmap_fbsubtype = m_fbsubtype;
+	m_last_fmap_n = m_fargs.size();
+	if (verbose) {
+		cout << "QML block - q-instruction cache updated...m_last_fmap_qinstr_list.size: " << m_last_fmap_qinstr_list.size() << endl;
+		cout << " m_last_fmap_frep: " << m_last_fmap_frep << " m_last_fmap_fbent: " << m_last_fmap_fbent <<
+				" m_last_fmap_fbsubtype: " << m_last_fmap_fbsubtype << " 	m_last_fmap_n: " << m_last_fmap_n << endl;
+	}
+
+	// assemble function arguments
+	feature_map_prepare_fargs(qinstr_list_fargs);
 }
 
 void qSim_qinstruction_block_qml::feature_map_pe_pauliZ(QREG_F_ARGS_TYPE* f_vec, int b_rep,
@@ -196,14 +253,13 @@ void qSim_qinstruction_block_qml::feature_map_pe_pauliZ(QREG_F_ARGS_TYPE* f_vec,
 							m_qr_h, QASM_F_TYPE_Q1_H, fh_stn, n, 0);
 		qinstr_list->push_back(qi_H);
 
-        // create phase shift functions using <f_vec> vector elements as parameters
+        // create phase shift functions using i-th <f_vec> vector elements as parameters
         for (int i=0; i<n; i++) {
-        	QREG_F_ARGS_TYPE fargs;
-			double phi = 2.0*(*f_vec)[i].m_d;
-			fargs.push_back(qSim_qreg_function_arg(phi));
+        	QREG_F_ARGS_TYPE fargs_i;
+			fargs_i.push_back(qSim_qreg_function_arg((*f_vec)[i]));
     		qSim_qinstruction_core* qi_PS = new qSim_qinstruction_core(QASM_MSG_ID_QREG_ST_TRANSFORM,
     						m_qr_h, QASM_F_TYPE_Q1_PS, fps_stn, 1, i,
-							QREG_F_INDEX_RANGE_TYPE(), QREG_F_INDEX_RANGE_TYPE(), fargs);
+							QREG_F_INDEX_RANGE_TYPE(), QREG_F_INDEX_RANGE_TYPE(), fargs_i);
     		qinstr_list->push_back(qi_PS);
        }
     }
@@ -232,12 +288,11 @@ void qSim_qinstruction_block_qml::feature_map_pe_pauliZZ(QREG_F_ARGS_TYPE* f_vec
 
         // create phase shift functions using <f_vec> vector elements as parameters
         for (int i=0; i<n; i++) {
-        	QREG_F_ARGS_TYPE fargs;
-			double phi = 2.0*(*f_vec)[i].m_d;
-			fargs.push_back(qSim_qreg_function_arg(phi));
+        	QREG_F_ARGS_TYPE fargs_i;
+			fargs_i.push_back(qSim_qreg_function_arg((*f_vec)[i]));
     		qSim_qinstruction_core* qi_PS = new qSim_qinstruction_core(QASM_MSG_ID_QREG_ST_TRANSFORM,
     						m_qr_h, QASM_F_TYPE_Q1_PS, fps_stn, 1, i,
-							QREG_F_INDEX_RANGE_TYPE(), QREG_F_INDEX_RANGE_TYPE(), fargs);
+							QREG_F_INDEX_RANGE_TYPE(), QREG_F_INDEX_RANGE_TYPE(), fargs_i);
     		qinstr_list->push_back(qi_PS);
         }
 
@@ -254,12 +309,11 @@ void qSim_qinstruction_block_qml::feature_map_pe_pauliZZ(QREG_F_ARGS_TYPE* f_vec
         						m_qr_h, QASM_F_TYPE_Q2_CX, fcx_stn, 1, i-1, fcrng, ftrng);
         		qinstr_list->push_back(qi_CX1);
 
-            	QREG_F_ARGS_TYPE fargs;
-    			double phi = 2.0*(*f_vec)[i].m_d;
-    			fargs.push_back(qSim_qreg_function_arg(phi));
+            	QREG_F_ARGS_TYPE fargs_i;
+    			fargs_i.push_back(qSim_qreg_function_arg((*f_vec)[i]));
         		qSim_qinstruction_core* qi_PS = new qSim_qinstruction_core(QASM_MSG_ID_QREG_ST_TRANSFORM,
         						m_qr_h, QASM_F_TYPE_Q1_PS, fps_stn, 1, i,
-    							QREG_F_INDEX_RANGE_TYPE(), QREG_F_INDEX_RANGE_TYPE(), fargs);
+    							QREG_F_INDEX_RANGE_TYPE(), QREG_F_INDEX_RANGE_TYPE(), fargs_i);
         		qinstr_list->push_back(qi_PS);
 
         		qSim_qinstruction_core* qi_CX2 = new qSim_qinstruction_core(QASM_MSG_ID_QREG_ST_TRANSFORM,
@@ -297,12 +351,11 @@ void qSim_qinstruction_block_qml::feature_map_pe_pauliZZ(QREG_F_ARGS_TYPE* f_vec
             	}
 
 //            # print('...adding PS - i:', i)
-            	QREG_F_ARGS_TYPE fargs;
-    			double phi = 2.0*(*f_vec)[i].m_d;
-    			fargs.push_back(qSim_qreg_function_arg(phi));
+            	QREG_F_ARGS_TYPE fargs_i;
+    			fargs_i.push_back(qSim_qreg_function_arg((*f_vec)[i]));
         		qSim_qinstruction_core* qi_PS = new qSim_qinstruction_core(QASM_MSG_ID_QREG_ST_TRANSFORM,
         						m_qr_h, QASM_F_TYPE_Q1_PS, fps_stn, 1, i,
-    							QREG_F_INDEX_RANGE_TYPE(), QREG_F_INDEX_RANGE_TYPE(), fargs);
+    							QREG_F_INDEX_RANGE_TYPE(), QREG_F_INDEX_RANGE_TYPE(), fargs_i);
         		qinstr_list->push_back(qi_PS);
 
 //            # print('...adding second CX - i:', i)
@@ -336,22 +389,55 @@ void qSim_qinstruction_block_qml::feature_map_pe_pauliZZ(QREG_F_ARGS_TYPE* f_vec
     }
 }
 
-// -------------------------------------
-// -------------------------------------
-
-// function block decomposition into core instructions - q-network
-
-void qSim_qinstruction_block_qml::unwrap_block_qnet(int n, std::list<qSim_qinstruction_core*>* qinstr_list, bool verbose) {
-	// q-network QML function block decomposition in core transformations
-	// based on given layout type (general or real amplitudes)
-	if (verbose)
-		cout << "QML block - unwrap_qnet..." << endl;
-
-	// perform unwrap according to sub-ftype value
-	qinstr_list->clear();
+void qSim_qinstruction_block_qml::feature_map_prepare_fargs(QREG_F_ARGS_TYPE* qinstr_list_fargs) {
+	// assemble function argument list from given one, applying needed replicas
 	switch (m_fbsubtype) {
-		case QASM_QML_QNET_LAY_TYPE_REAL_AMPL: {
-			qnetwork_realAmplitude(n, &m_fargs, m_frep, m_fbent, qinstr_list, verbose);
+		case QASM_QML_FMAP_TYPE_PAULI_Z: {
+			// sequence replicas as per tot repetition attribute
+			for (int r=0; r<m_frep; r++) {
+				// setup phi fargs for current replica
+				// -> single level with basic phi calculation
+
+				// level #0 - all qubits
+				for (unsigned int i=0; i<m_fargs.size(); i++) {
+					QREG_F_ARG_TYPE f_arg = 2.0*m_fargs[i].m_d;
+					qinstr_list_fargs->push_back(f_arg);
+				}
+			}
+		}
+		break;
+
+		case QASM_QML_FMAP_TYPE_PAULI_ZZ: {
+			// sequence replicas as per tot repetition attribute + 1
+			for (int r=0; r<=m_frep; r++) {
+				// setup phi fargs for current replica
+				// -> first level with basic phi calculation
+				// -> other levels multi-value phi calculation - entanglement type specific
+
+				// level #0 - all qubits
+				for (unsigned int i=0; i<m_fargs.size(); i++) {
+					QREG_F_ARG_TYPE f_arg = 2.0*m_fargs[i].m_d;
+					qinstr_list_fargs->push_back(f_arg);
+				}
+
+				// levels #1... #L-1 - only level qubit
+				if (m_last_qnet_fbent == QASM_QML_ENTANG_TYPE_LINEAR) {
+					// start from level #1 for linear entanglement
+					for (unsigned int l=1; l<m_fargs.size(); l++) {
+						QREG_F_ARG_TYPE f_arg = 2.0*(M_PI-m_fargs[l].m_d)*(M_PI-m_fargs[l-1].m_d);
+						qinstr_list_fargs->push_back(f_arg);
+					}
+				}
+				else if (m_last_qnet_fbent == QASM_QML_ENTANG_TYPE_CIRCULAR) {
+					// start from level #0 (with index wrap-up) for circular entanglement
+					QREG_F_ARG_TYPE f_arg = 2.0*(M_PI-m_fargs[0].m_d)*(M_PI-m_fargs[m_fargs.size()-1].m_d);
+					qinstr_list_fargs->push_back(f_arg);
+					for (unsigned int i=1; i<m_fargs.size(); i++) {
+						QREG_F_ARG_TYPE f_arg = 2.0*(M_PI-m_fargs[i].m_d)*(M_PI-m_fargs[i-1].m_d);
+						qinstr_list_fargs->push_back(f_arg);
+					}
+				}
+			}
 		}
 		break;
 
@@ -361,6 +447,65 @@ void qSim_qinstruction_block_qml::unwrap_block_qnet(int n, std::list<qSim_qinstr
 		}
 		break;
 	}
+//	cout << "qinstr_list_fargs.size: " << qinstr_list_fargs << endl;
+}
+
+// -------------------------------------
+// -------------------------------------
+
+// function block decomposition into core instructions - q-network
+
+void qSim_qinstruction_block_qml::unwrap_block_qnet(int n, std::list<qSim_qinstruction_core*>** qinstr_list,
+                                                    QREG_F_ARGS_TYPE* qinstr_list_fargs, bool verbose) {
+	// q-network QML function block decomposition in core transformations
+	// based on given layout type (general or real amplitudes)
+	if (verbose)
+		cout << "QML block - unwrap_qnet..." << endl;
+
+	// check if in cache
+	if (is_qml_ftype_in_cache(m_ftype, m_frep, m_fbent, m_fbsubtype, m_fargs)) {
+		// take from cache
+		if (verbose)
+			cout << "QML block - q-instruction list taken from cache..." << endl;
+		*qinstr_list = &m_last_qnet_qinstr_list;
+
+		// assemble function arguments
+		qnetwork_prepare_fargs(qinstr_list_fargs);
+		return;
+	}
+
+	// perform unwrap according to sub-ftype value
+	for (std::list<qSim_qinstruction_core*>::iterator it = m_last_qnet_qinstr_list.begin(); it != m_last_qnet_qinstr_list.end(); ++it) {
+		delete (*it);
+	}
+	m_last_qnet_qinstr_list.clear();
+	switch (m_fbsubtype) {
+		case QASM_QML_QNET_LAY_TYPE_REAL_AMPL: {
+			qnetwork_realAmplitude(n, &m_fargs, m_frep, m_fbent, &m_last_qnet_qinstr_list, verbose);
+		}
+		break;
+
+		default: {
+			// error case
+			cerr << "qSim_qinstruction_block_qml - unhandled qasm message subtype " << m_fbsubtype << "!!" << endl;
+		}
+		break;
+	}
+	*qinstr_list = &m_last_qnet_qinstr_list;
+
+	// set other cache fields
+	m_last_qnet_frep = m_frep;
+	m_last_qnet_fbent = m_fbent;
+	m_last_qnet_fbsubtype = m_fbsubtype;
+	m_last_qnet_n = m_fargs.size()/(m_frep + 1);
+	if (verbose) {
+		cout << "QML block - q-instruction cache updated...m_last_qnet_qinstr_list.size: " << m_last_qnet_qinstr_list.size() << endl;
+		cout << " m_last_qnet_frep: " << m_last_qnet_frep << " m_last_qnet_fbent: " << m_last_qnet_fbent <<
+				" m_last_qnet_fbsubtype: " << m_last_qnet_fbsubtype << " m_last_qnet_n: " << m_last_qnet_n << endl;
+	}
+
+	// assemble function arguments
+	qnetwork_prepare_fargs(qinstr_list_fargs);
 }
 
 void qSim_qinstruction_block_qml::qnetwork_realAmplitude(int n, QREG_F_ARGS_TYPE* param_vec, int b_rep,
@@ -501,6 +646,26 @@ void qSim_qinstruction_block_qml::qnetwork_build_CG_block(int c_idx, int t_idx,
 	qSim_qinstruction_core* qi_CX = new qSim_qinstruction_core(QASM_MSG_ID_QREG_ST_TRANSFORM,
 					m_qr_h, QASM_F_TYPE_QN_MCSLRU, fcx_stn, 1, i, fcrng, ftrng, fargs, futype);
 	qinstr_list->push_back(qi_CX);
+}
+
+void qSim_qinstruction_block_qml::qnetwork_prepare_fargs(QREG_F_ARGS_TYPE* qinstr_list_fargs) {
+	// assemble function argument list from given one, applying needed replicas
+	switch (m_fbsubtype) {
+		case QASM_QML_QNET_LAY_TYPE_REAL_AMPL: {
+			// sequence replicas as per instruction arguments
+			for (unsigned int i=0; i<m_fargs.size(); i++) {
+				qinstr_list_fargs->push_back(m_fargs[i]);
+			}
+		}
+		break;
+
+		default: {
+			// error case
+			cerr << "qSim_qinstruction_block_qml - unhandled qasm message subtype " << m_fbsubtype << "!!" << endl;
+		}
+		break;
+	}
+//	cout << "qinstr_list_fargs.size: " << qinstr_list_fargs << endl;
 }
 
 // ---------------------------------

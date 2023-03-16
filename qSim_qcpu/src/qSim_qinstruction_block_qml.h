@@ -70,8 +70,10 @@ public:
 								QREG_F_ARGS_TYPE fargs=QREG_F_ARGS_TYPE());
 
 	// helper methods for specific block unwrapping into core instructions
-	void unwrap_block_fmap(std::list<qSim_qinstruction_core*>* qinstr_list, bool verbose=false);
-	void unwrap_block_qnet(int n, std::list<qSim_qinstruction_core*>* qinstr_list, bool verbose=false);
+	void unwrap_block_fmap(std::list<qSim_qinstruction_core*>** qinstr_list,
+						   QREG_F_ARGS_TYPE* qinstr_list_fargs, bool verbose=false);
+	void unwrap_block_qnet(int n, std::list<qSim_qinstruction_core*>** qinstr_list,
+						   QREG_F_ARGS_TYPE* qinstr_list_fargs, bool verbose=false);
 
 	// ... other blocks...
 
@@ -88,6 +90,7 @@ private:
 							   std::list<qSim_qinstruction_core*>* qinstr_list, bool verbose);
 	void feature_map_pe_pauliZZ(QREG_F_ARGS_TYPE* f_vec, int b_rep, QASM_QML_ENTANG_TYPE b_entang,
 							    std::list<qSim_qinstruction_core*>* qinstr_list, bool verbose);
+	void feature_map_prepare_fargs(QREG_F_ARGS_TYPE* fargs);
 
 	// q-network block unwrap implementation methods
 	void qnetwork_realAmplitude(int n, QREG_F_ARGS_TYPE* param_vec, int b_rep, QASM_QML_ENTANG_TYPE b_entang,
@@ -99,6 +102,7 @@ private:
 			std::list<qSim_qinstruction_core*>* qinstr_list);
 	void qnetwork_build_CG_block(int c_idx, int t_idx, QREG_F_ARGS_TYPE* param_vec, int i,
 			std::list<qSim_qinstruction_core*>* qinstr_list);
+	void qnetwork_prepare_fargs(QREG_F_ARGS_TYPE* fargs);
 
 };
 
